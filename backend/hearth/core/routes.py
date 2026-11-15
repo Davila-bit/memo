@@ -61,6 +61,13 @@ def svc(request: Request) -> CheckinService:
     return request.app.state.svc
 
 
+async def voice_available(request: Request) -> bool:
+    from hearth.integrations.search import TypesenseSearch
+
+    search = svc(request).search
+    return isinstance(search, TypesenseSearch) and await search.voice_available()
+
+
 # ============================================================================ public
 public = APIRouter(prefix="/api")
 
@@ -81,7 +88,7 @@ async def login(body: LoginRequest, request: Request, response: Response) -> Me:
     response.set_cookie(COOKIE, auth.sign(), max_age=MAX_AGE, httponly=True, samesite="lax",
                         secure=is_https(request), path="/")
     r = await svc(request).resident()
-    return Me(name=r.daughter_name, resident=r)
+    return Me(name=r.daughter_name, resident=r, voice=await voice_available(request))
 
 
 @public.post("/auth/logout", status_code=204)
@@ -116,7 +123,7 @@ api = APIRouter(prefix="/api", dependencies=[Depends(require_session)])
 @api.get("/me", response_model=Me)
 async def me(request: Request) -> Me:
     r = await svc(request).resident()
-    return Me(name=r.daughter_name, resident=r)
+    return Me(name=r.daughter_name, resident=r, voice=await voice_available(request))
 
 
 @api.get("/today", response_model=Today)
@@ -283,13 +290,25 @@ async def put_resident(body: Resident, request: Request) -> Resident:
 @api.post("/ask", response_model=AskResponse)
 async def ask(body: AskRequest, request: Request) -> AskResponse:
     s = svc(request)
+    q = body.q.strip()
+    if body.voice_wav_b64 is not None:
+        from hearth.integrations.search import TypesenseSearch
+
+        if not isinstance(s.search, TypesenseSearch) or not s.search.voice_enabled:
+            raise HTTPException(status_code=400, detail="Voice questions need search to be set up.")
+        try:
+            q = await s.search.transcribe(body.voice_wav_b64)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from None
+    elif len(q) < 2:
+        raise HTTPException(status_code=400, detail="Please write a question between 2 and 300 characters.")
     now = s.clock.now()
     recent = await s.store.list_events(since=now - timedelta(days=8), limit=500)
     try:
-        return await s.search.ask(body.q, now, recent)
+        return await s.search.ask(q, now, recent)
     except Exception as e:  # noqa: BLE001
         log.warning("search failed (%s); using keyword fallback", e)
-        return await request.app.state.fallback_search.ask(body.q, now, recent)
+        return await request.app.state.fallback_search.ask(q, now, recent)
 
 
 @api.get("/digest", response_model=Digest)

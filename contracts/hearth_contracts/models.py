@@ -184,6 +184,7 @@ class LoginRequest(Model):
 
 
 class Me(Model):
+    voice: bool = False  # search can accept voice questions now
     name: str  # "Sarah"
     resident: Resident
 
@@ -210,7 +211,8 @@ class ManualEventRequest(Model):
 
 
 class AskRequest(Model):
-    q: str = Field(min_length=2, max_length=300)
+    q: str = Field(default="", max_length=300)
+    voice_wav_b64: str | None = None
 
 
 class ClockRequest(Model):
@@ -273,6 +275,7 @@ class AskResponse(Model):
     answer: str  # one or two plain sentences; "I couldn't find that" when unsure
     hits: list[AskHit]
     engine: Literal["typesense", "fallback"]
+    mode: Literal["exact", "related"] | None = None
 
 
 class Digest(Model):

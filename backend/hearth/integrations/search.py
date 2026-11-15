@@ -7,6 +7,8 @@ Typesense features in use:
   Gemini to turn the question into `q` + `filter_by` + `sort_by`; the demo-clock date table is in the
   model's system prompt so "Tuesday" and "this morning" resolve
 - upserts / bulk import, highlights for snippets
+- hybrid keyword + automatic MiniLM embeddings for related moments
+- Whisper voice questions via POST multi_search (audio is never stored or logged)
 If NL search fails or returns an unusable filter, one direct Gemini call does the same translation
 (validated against an allow-list), then a deterministic parser. Answers are computed in Python.
 """
@@ -14,8 +16,12 @@ If NL search fails or returns an unusable filter, one direct Gemini call does th
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
+import io
 import json
 import re
+import wave
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -41,6 +47,31 @@ FILTER_FIELDS = {"kind", "day", "daypart", "weekday", "ts_unix", "source", "amou
                  "volume_ml_est", "confidence", "resident_id", "checkin_id", "hour"}
 SORT_FIELDS = {"ts_unix", "volume_ml_est", "confidence", "_text_match"}
 QUERY_BY = "text,kind"
+VOICE_MODEL = {"model_name": "ts/whisper/base.en"}
+MAX_VOICE_BYTES = 1_500_000
+
+
+def validate_voice(audio: str) -> None:
+    """Bound memory before decoding, then accept only the browser's PCM WAV format."""
+    if len(audio) > 4 * ((MAX_VOICE_BYTES + 2) // 3):
+        raise ValueError("Please keep your voice question under 1.5 MB.")
+    try:
+        raw = base64.b64decode(audio, validate=True)
+    except (ValueError, binascii.Error) as e:
+        raise ValueError("Please send your voice question as a WAV recording.") from e
+    if len(raw) > MAX_VOICE_BYTES:
+        raise ValueError("Please keep your voice question under 1.5 MB.")
+    try:
+        with wave.open(io.BytesIO(raw), "rb") as wav:
+            if (wav.getnchannels(), wav.getframerate(), wav.getsampwidth(), wav.getcomptype()) != (1, 16000, 2, "NONE"):
+                raise ValueError("Please record a mono, 16 kHz PCM WAV question.")
+    except (wave.Error, EOFError) as e:
+        raise ValueError("Please send your voice question as a WAV recording.") from e
+
+
+def embedding_field() -> dict[str, Any]:
+    return {"name": "embedding", "type": "float[]", "optional": True,
+            "embed": {"from": ["text"], "model_config": {"model_name": "ts/all-MiniLM-L12-v2"}}}
 
 
 def event_to_doc(e: HearthEvent) -> dict[str, Any]:
@@ -76,7 +107,7 @@ def doc_to_event(d: dict[str, Any]) -> HearthEvent:
     return HearthEvent.model_validate({k: v for k, v in d.items() if k in keys})
 
 
-def schema(name: str, synonym_set: str) -> dict[str, Any]:
+def schema(name: str, synonym_set: str, *, hybrid: bool = False, voice: bool = False) -> dict[str, Any]:
     f = lambda n, t, **kw: {"name": n, "type": t, **kw}
     return {
         "name": name,
@@ -102,9 +133,11 @@ def schema(name: str, synonym_set: str) -> dict[str, Any]:
             f("hour", "int32", facet=True),
             f("time_label", "string", index=False, optional=True),
             f("text", "string"),
+            *([embedding_field()] if hybrid else []),
         ],
         "default_sorting_field": "ts_unix",
         "synonym_sets": [synonym_set],
+        **({"voice_query_model": VOICE_MODEL.copy()} if voice else {}),
     }
 
 
@@ -179,13 +212,19 @@ class TypesenseSearch:
     """Implements ports.Search."""
 
     def __init__(self, *, collection: str | None = None, nl_model_id: str | None = None,
-                 synonym_set: str | None = None, use_nl: bool = True) -> None:
+                 synonym_set: str | None = None, use_nl: bool = True,
+                 hybrid: bool | None = None, voice: bool | None = None) -> None:
         self.collection = collection or env("TYPESENSE_COLLECTION", "hearth_events") or "hearth_events"
         self.nl_model_id = nl_model_id or f"{self.collection}-gemini"
         self.synonym_set = synonym_set or f"{self.collection}-synonyms"
         self.use_nl = use_nl and bool(gemini_key())
+        self.hybrid_enabled = env("TYPESENSE_HYBRID") == "1" if hybrid is None else hybrid
+        self.voice_enabled = env("TYPESENSE_VOICE") == "1" if voice is None else voice
         self._client = None
         self._ready = False
+        self._hybrid_ready = False
+        self._voice_ready = False
+        self._schema_outdated = False
         self._nl_ready = False
         self._nl_prompt_key: str | None = None
         self._lock = asyncio.Lock()
@@ -231,9 +270,33 @@ class TypesenseSearch:
                 "items": [{"id": k, "synonyms": v} for k, v in SYNONYMS.items()],
             })
             try:
-                await self.client.collections[self.collection].retrieve()
+                current = await self.client.collections[self.collection].retrieve()
+                self._hybrid_ready = self.hybrid_enabled and any(
+                    f["name"] == "embedding" for f in current.get("fields", []))
+                if self.hybrid_enabled and not self._hybrid_ready:
+                    try:
+                        await self.client.collections[self.collection].update({"fields": [embedding_field()]})
+                        self._hybrid_ready = True
+                    except Exception as e:  # noqa: BLE001
+                        self._schema_outdated = True
+                        log.warning("typesense: embedding migration deferred until reindex: %s", _err(e))
+                self._voice_ready = self.voice_enabled and current.get("voice_query_model") == VOICE_MODEL
+                if self.voice_enabled and not self._voice_ready:
+                    try:
+                        await self.client.collections[self.collection].update({"voice_query_model": VOICE_MODEL.copy()})
+                        updated = await self.client.collections[self.collection].retrieve()
+                        self._voice_ready = updated.get("voice_query_model") == VOICE_MODEL
+                    except Exception:  # noqa: BLE001
+                        self._voice_ready = False
+                    if not self._voice_ready:
+                        self._schema_outdated = True
+                        log.warning("typesense: voice schema migration deferred until reindex")
             except ObjectNotFound:
-                await self.client.collections.create(schema(self.collection, self.synonym_set))
+                await self.client.collections.create(schema(
+                    self.collection, self.synonym_set, hybrid=self.hybrid_enabled, voice=self.voice_enabled))
+                self._hybrid_ready = self.hybrid_enabled
+                self._voice_ready = self.voice_enabled
+                self._schema_outdated = False
                 log.info("typesense: created collection %s", self.collection)
             self._ready = True
             set_status("typesense", "ok")
@@ -278,6 +341,12 @@ class TypesenseSearch:
         """Bulk upsert (seeding / demo reset). Returns how many documents were accepted."""
         try:
             await self.ensure()
+            if self._schema_outdated:
+                # The caller supplies the authoritative events; ensure() never deletes a collection.
+                await self.client.collections[self.collection].delete()
+                self._ready = False
+                await self.ensure()
+                self._schema_outdated = False
             if not events:
                 return 0
             res = await self.client.collections[self.collection].documents.import_(
@@ -312,8 +381,10 @@ class TypesenseSearch:
             await self.ensure()
             events, snippets, how = await self._search(q, plan, now)
             self.last_debug["how"] = how
-            return AskResponse(q=q, answer=compose_answer(q, plan, events, now), hits=to_hits(events, snippets),
-                               engine="typesense")
+            related = how == "hybrid"
+            answer = "Here are the closest moments I found." if related else compose_answer(q, plan, events, now)
+            return AskResponse(q=q, answer=answer, hits=to_hits(events, snippets),
+                               engine="typesense", mode="related" if related else "exact")
         except Exception as e:  # noqa: BLE001
             set_status("typesense", "error")
             log.warning("typesense ask failed, using keyword fallback: %s", _err(e))
@@ -321,15 +392,63 @@ class TypesenseSearch:
 
     # ------------------------------------------------------------------ internals
 
+    async def voice_available(self) -> bool:
+        if not self.voice_enabled:
+            return False
+        try:
+            await self.ensure()
+        except Exception:  # noqa: BLE001
+            return False
+        return self._voice_ready
+
+    async def transcribe(self, audio: str) -> str:
+        if not self.voice_enabled:
+            raise ValueError("Voice questions need search to be set up.")
+        validate_voice(audio)
+        try:
+            await self.ensure()
+        except Exception:  # noqa: BLE001
+            raise ValueError("I couldn't write down your question. Please try typing it.") from None
+        if not self._voice_ready:
+            raise ValueError("Voice questions are unavailable until search is reindexed. Please type your question.")
+        try:
+            # POST keeps audio out of URLs/access logs and avoids Typesense's GET length limit.
+            response = await self.client.multi_search.perform({"searches": [{
+                "collection": self.collection, "q": "*", "query_by": "text", "per_page": 1,
+                "exclude_fields": "embedding", "voice_query": audio,
+            }]})
+            result = response["results"][0]
+            q = str((result.get("request_params", {}).get("voice_query") or {}).get("transcribed_query") or "").strip()
+        except Exception:  # noqa: BLE001
+            # Do not log the exception: an upstream error could echo its request body.
+            raise ValueError("I couldn't write down your question. Please try typing it.") from None
+        if not 2 <= len(q) <= 300:
+            raise ValueError("I couldn't hear a short question. Please try again or type it.")
+        return q
+
     async def _run(self, params: dict[str, Any]) -> dict[str, Any]:
         base = {"query_by": QUERY_BY, "per_page": 100, "highlight_fields": "text",
-                "facet_by": "kind,daypart", "max_facet_values": 10}
+                "facet_by": "kind,daypart", "max_facet_values": 10, "exclude_fields": "embedding"}
         merged = {k: v for k, v in {**base, **params}.items() if v not in ("", None)}
         merged.setdefault("q", "*")
         return await self.client.collections[self.collection].documents.search(merged)
 
     async def _search(self, q: str, plan: Plan, now: datetime) -> tuple[list[HearthEvent], dict[str, str], str]:
         tried: list[str] = []
+        # Unrecognised questions find related evidence, never a yes/no or count from semantic matches.
+        if not plan.kinds and self._hybrid_ready:
+            try:
+                filters = [plan_filter(plan), f"ts_unix:<={int((now + timedelta(minutes=1)).timestamp())}"]
+                res = await self._run({"q": q, "query_by": "text,embedding",
+                                       "filter_by": " && ".join(f for f in filters if f),
+                                       "per_page": 10})
+                events, snips = self._hits(res, plan, now, sort_recent=False)
+                return events, snips, "hybrid"
+            except Exception as e:  # noqa: BLE001
+                log.warning("typesense hybrid search unavailable, using keyword search: %s", _err(e))
+                res = await self._run({"q": plan.text, "filter_by": plan_filter(plan), "sort_by": "ts_unix:desc"})
+                events, snips = self._hits(res, plan, now, strict=True)
+                return events, snips, "keyword"
         # 1. Typesense built-in natural-language search (Gemini model configured in Typesense).
         if await self._ensure_nl(now):
             try:
@@ -378,7 +497,7 @@ class TypesenseSearch:
         return events, snips, "plan" + (f" after {','.join(tried)}" if tried else "")
 
     def _hits(self, res: dict[str, Any], plan: Plan, now: datetime,
-              strict: bool = False) -> tuple[list[HearthEvent], dict[str, str]]:
+              strict: bool = False, sort_recent: bool = True) -> tuple[list[HearthEvent], dict[str, str]]:
         events: list[HearthEvent] = []
         snips: dict[str, str] = {}
         for h in res.get("hits") or []:
@@ -394,7 +513,8 @@ class TypesenseSearch:
             for hl in h.get("highlights") or []:
                 if hl.get("field") == "text" and hl.get("snippet"):
                     snips[e.id] = re.sub(r"</?mark>", "", hl["snippet"])[:240]
-        events.sort(key=lambda e: e.ts, reverse=True)
+        if sort_recent:
+            events.sort(key=lambda e: e.ts, reverse=True)
         return events, snips
 
 

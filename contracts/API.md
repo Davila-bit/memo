@@ -48,6 +48,8 @@ scripts/                       ws (run in workspace), probes, dev-up
 | `GEMINI_API_KEY` | agent (Live), integrations (digest, ask) | template digest; agent cannot run (use mock) |
 | `GEMINI_LIVE_MODEL` (default `gemini-3.8-live`), `GEMINI_TEXT_MODEL` (default `gemini-3.5-flash-lite`) | agent, integrations | – |
 | `TYPESENSE_HOST`, `TYPESENSE_API_KEY` | integrations | keyword fallback over recent events |
+| `TYPESENSE_HYBRID` (default `0`) | search | only `1` enables MiniLM embeddings and related/hybrid search; off performs no embedding migration |
+| `TYPESENSE_VOICE` (default `0`) | search | only `1` enables Whisper and voice questions; off performs no voice migration |
 | `NTFY_TOPIC`, `NTFY_URL` (default `https://ntfy.sh`) | integrations | no urgent push; in-app alert still shows |
 | `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` | integrations | no Web Push; in-app alert still shows |
 | `HEARTH_KIOSK_DEVICE` (default `kitchen`) | calls | – |
@@ -97,6 +99,23 @@ defaults to `gemini-3.5-flash-lite` (0.5 s).
 | `GET /api/kiosk/token?device=` | → `KioskToken` | for the `/kiosk` page; needs `?key=` = `HEARTH_INTERNAL_TOKEN` instead of a session |
 
 Errors: `{"detail": "plain sentence"}` with the right status code.
+
+`AskResponse.mode` is optional (`"exact" | "related" | null`, default `null`). Recognised care
+questions retain the planned/NL search and Python-computed answers (`exact`). Unrecognised
+questions use Typesense keyword + embedding search only with `TYPESENSE_HYBRID=1` and a ready embedding field (`related`), with the answer
+"Here are the closest moments I found." and no yes/no inference. `engine` remains `typesense`.
+
+`Me` (login and `GET /api/me`) includes `voice: bool`: true only when the enabled search voice model is ready. The web hides its microphone and audio notice otherwise. Web mock mode returns true.
+
+`AskRequest` is `{q?: string, voice_wav_b64?: string | null}`. Text questions must contain
+2–300 characters. With voice disabled or search missing, voice requests return 400:
+"Voice questions need search to be set up." A voice question may omit `q`: send a
+base64-encoded mono, 16 kHz,
+16-bit PCM WAV (maximum 1,500,000 decoded bytes). Typesense transcribes it using
+`ts/whisper/base.en`, then the same plan/search/Python answer path runs. `AskResponse.q`
+contains that transcription. Audio stays in memory and is never stored or logged by Memo;
+it is sent in a POST body to Typesense, never a URL. Voice validation, missing search
+configuration, or unavailable transcription return HTTP 400 with a plain sentence.
 
 `HearthEvent.for_kind: CheckinKind | null` (default `null`) identifies what a `refused`, `missed`,
 `concern` or `note` event was for. `Resident.phone: string | null` (default `null`) is her phone

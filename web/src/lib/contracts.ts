@@ -127,6 +127,7 @@ export interface LoginRequest {
 }
 
 export interface Me {
+  voice: boolean;
   name: string;
   resident: Resident;
 }
@@ -151,7 +152,8 @@ export interface ManualEventRequest {
 }
 
 export interface AskRequest {
-  q: string;
+  q?: string;
+  voice_wav_b64?: string | null;
 }
 
 export interface PushSubscription {
@@ -211,6 +213,7 @@ export interface AskResponse {
   answer: string;
   hits: AskHit[];
   engine: "typesense" | "fallback";
+  mode?: "exact" | "related" | null;
 }
 
 export interface Digest {

@@ -12,6 +12,7 @@ import secrets
 
 import pytest
 import pytest_asyncio
+from typesense.exceptions import ObjectNotFound
 
 from hearth.integrations.search import TypesenseSearch
 
@@ -37,10 +38,14 @@ QUESTIONS: list[tuple[str, list[str]]] = [
 async def ts():
     name = f"hearth_events_test_{secrets.token_hex(4)}"
     s = TypesenseSearch(collection=name)
-    n = await s.reindex(events())
-    assert n == len(events())
-    yield s
-    await s.drop()
+    try:
+        n = await s.reindex(events())
+        assert n == len(events())
+        yield s
+    finally:
+        await s.drop()
+        with pytest.raises(ObjectNotFound):
+            await s.client.collections[name].retrieve()
 
 
 @pytest.mark.parametrize("q,expect", QUESTIONS, ids=[q for q, _ in QUESTIONS])
@@ -76,3 +81,26 @@ async def test_demo_clock_moves_the_nl_prompt(ts: TypesenseSearch) -> None:
     print(f"\nQ (clock = Wed 3:30 pm): how much has she drunk today?\nA: {r.answer}\n   how={ts.last_debug.get('how')}"
           f" nl={ts.last_debug.get('nl')}")
     assert "About 500 ml so far today, across 3 drinks." == r.answer
+
+
+@pytest.mark.skipif(os.environ.get("TYPESENSE_HYBRID") != "1", reason="hybrid is opt-in")
+async def test_live_related_meaning(ts: TypesenseSearch) -> None:
+    from hearth_contracts.models import HearthEvent
+
+    event = HearthEvent(id="upset", ts=NOW, resident_id="margaret", source="manual", kind="note",
+                        summary="She said she was tired of being asked.")
+    await ts.index(event)
+    result = await ts.ask("did she seem upset?", NOW, [])
+    assert result.engine == "typesense" and result.mode == "related"
+    assert result.answer == "Here are the closest moments I found."
+    assert any(hit.event.id == event.id for hit in result.hits)
+
+
+@pytest.mark.skipif(os.environ.get("TYPESENSE_VOICE") != "1", reason="voice is opt-in")
+async def test_live_voice_silence_returns_normal_response(ts: TypesenseSearch) -> None:
+    from .test_search_features import silent_wav
+
+    # No speech synthesiser is installed in the workspace. A normal silent response has an
+    # empty transcription, which our backend converts to its specific "couldn't hear" error.
+    with pytest.raises(ValueError, match="I couldn't hear a short question"):
+        await ts.transcribe(silent_wav())

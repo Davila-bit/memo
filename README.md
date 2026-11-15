@@ -128,7 +128,7 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 | [Google Gemini](https://ai.google.dev/) `gemini-3.5-flash-lite` | service | Daily digest, and understanding questions for "ask the log" |
 | [google-genai](https://github.com/googleapis/python-genai) | Apache-2.0 | Python client for Gemini |
 | [Tiger Cloud](https://www.tigerdata.com/) / [TimescaleDB](https://github.com/timescale/timescaledb) | Apache-2.0 (core) | Hypertable for events, continuous aggregates for weekly view, retention policy |
-| [Typesense Cloud](https://cloud.typesense.org/) | GPL-3.0 (server) | "Ask the log" natural-language search over check-in events |
+| [Typesense Cloud](https://cloud.typesense.org/) | GPL-3.0 (server) | "Ask the log" natural-language search over check-in events; opt-in `ts/all-MiniLM-L12-v2` embeddings and `ts/whisper/base.en` voice transcription |
 | [typesense](https://github.com/typesense/typesense-python) (Python client) | Apache-2.0 | Python client for Typesense |
 | [Presidio Analyzer](https://github.com/microsoft/presidio) | MIT | PII detection in evidence text and transcripts |
 | [Presidio Anonymizer](https://github.com/microsoft/presidio) | MIT | PII redaction |

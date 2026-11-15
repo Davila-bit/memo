@@ -39,3 +39,37 @@ test("Enter submits a question and Shift+Enter inserts a newline", async ({ page
   await expect(page.getByText("The helper observed about 640 ml today.")).toBeVisible();
   await expect(question).toHaveValue("How much has she drunk today?\n");
 });
+
+test("unrecognised questions label related results honestly", async ({ page }, info) => {
+  await page.getByLabel("Your question").fill("Tell me about her porridge");
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Closest moments" })).toBeVisible();
+  await expect(page.getByText("Here are the closest moments I found.", { exact: true })).toBeVisible();
+  await expectAccessible(page, info, "ask-related");
+});
+
+test("voice control is keyboard accessible and explains audio use", async ({ page }, info) => {
+  const voice = page.getByRole("button", { name: "Ask by voice", exact: true });
+  await expect(voice).toBeVisible();
+  await voice.focus();
+  await expect(voice).toBeFocused();
+  await expect(voice).toHaveAttribute("aria-pressed", "false");
+  const box = await voice.boundingBox();
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+  await expect(page.getByText("Your question is sent to our search service to be written down. It isn't kept.")).toBeVisible();
+  await expectAccessible(page, info, "ask-voice-control");
+});
+
+test("denied microphone access leaves typing available", async ({ page }) => {
+  // Simulate denial without opening or driving a real microphone.
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      value: async () => { throw new DOMException("Permission denied", "NotAllowedError"); },
+    });
+  });
+  await page.getByRole("button", { name: "Ask by voice", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Couldn't use the microphone" })).toHaveText("Couldn't use the microphone. Please allow microphone access or type your question.");
+  await page.getByLabel("Your question").fill("How much has she drunk today?");
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(page.getByText("The helper observed about 640 ml today.")).toBeVisible();
+});
