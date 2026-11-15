@@ -13,6 +13,19 @@ DRINK = {
 }
 DRINK_BODY = {"sip": "had a sip", "some": "drank some", "most": "drank most of a glass", "all": "drank a full glass"}
 MEAL_AMOUNT = {"sip": "had a bite or two", "some": "ate some of it", "most": "ate most of it", "all": "ate all of it"}
+REPORTED_BODY = "The helper heard her say so but couldn't see her on this call."
+
+
+def reported_summary(kind: str, period: str = "Morning") -> str:
+    said = {"drink": "Said she had some water.", "meal": "Said she has eaten.",
+            "med": f"Said she took her {period.lower()} tablets."}[kind]
+    return f"{said} The helper couldn't see her on this call."
+
+
+def reported_title(kind: str, mum: str, period: str = "Morning") -> str:
+    action = {"drink": "had her water", "meal": "has eaten",
+              "med": f"took her {period.lower()} tablets"}[kind]
+    return f"{mum} says she {action}"
 
 
 def meal_name(label: str | None, when: datetime | None = None, tz: str | None = None) -> str:

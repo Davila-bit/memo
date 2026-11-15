@@ -19,6 +19,20 @@ def opening_line(job: AgentJob) -> str:
     return f"Hello {r.preferred_name}, it's {r.daughter_name}'s helper."
 
 
+def no_video_instructions(job: AgentJob) -> str:
+    task = {"drink": "have her drink", "meal": "have her meal", "med": "take her tablets"}[job.kind]
+    args = "steps_seen=[]" if job.kind == "med" else 'amount="some"'
+    return f"""NO CALLER VIDEO: replace the visual task with this voice-only task.
+Say once: "I can't see you just now, but I can hear you." Do not repeat that explanation.
+Ask her to {task} and to tell you when she has. Then wait for her answer.
+When she says she has, call confirm_{job.kind}({args}, confidence=0.4, evidence="Said: ...").
+The evidence must begin with `Said:` followed by a short gist of her words. Never claim to have
+seen anything or invent observed steps. This is her report, not an observation.
+On the tool reply, thank her, say goodbye and call end_checkin("done").
+If she declines, use report_refusal(said, asked_times) as usual, then say goodbye and call
+end_checkin("refused"). Keep the existing safety rules and never give medical advice or change doses."""
+
+
 def instructions(job: AgentJob) -> str:
     r = job.resident
     name, daughter = r.preferred_name, r.daughter_name

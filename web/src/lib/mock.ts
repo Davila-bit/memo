@@ -340,6 +340,14 @@ function finish(c: Checkin, outcome: CheckinOutcome): void {
             });
     addEvent(e);
     updateCheckin(c, { outcome, summary: e.summary });
+  } else if (outcome === "reported") {
+    const said = { drink: "I've had my water, thank you", meal: "I've eaten, thank you", med: "I've taken my morning tablets, thank you" }[c.kind];
+    const summary = { drink: "Said she had some water.", meal: "Said she has eaten.", med: "Said she took her morning tablets." }[c.kind];
+    const e = ev(ts, "note", `${summary} The helper couldn't see her on this call.`, `Said: ${said}`, {
+      ...base, for_kind: c.kind, said, confidence: 0.4,
+    });
+    addEvent(e);
+    updateCheckin(c, { outcome, summary: e.summary });
   } else if (outcome === "refused") {
     const said = c.kind === "meal" ? "I'm not hungry yet" : "I'm not thirsty, I had tea";
     const e = ev(ts, "refused", `${mum} didn't want ${c.kind === "drink" ? "water" : c.kind === "meal" ? "to eat" : "her tablets"} just now`, "Said no kindly, seemed comfortable", { ...base, said, confidence: 0.9 });
@@ -427,9 +435,14 @@ function runScript(c: Checkin, outcome: CheckinOutcome): void {
   t(1300, () => updateCheckin(c, { status: "connected", connected_at: now().toISOString() }));
   t(1700, () => caption(c, "helper", `Hello ${name}, it's Sarah's helper. I'm an assistant.`));
   t(2900, () => caption(c, "her", "Oh, hello."));
-  t(3500, () => caption(c, "helper", l.ask));
+  t(3500, () => caption(c, "helper", outcome === "reported" ? "I can't see you just now, but I can hear you." : l.ask));
   t(4300, () => updateCheckin(c, { status: "watching" }));
-  if (outcome === "refused") {
+  if (outcome === "reported") {
+    const task = { drink: "have some water", meal: "have your meal", med: "take your tablets" }[c.kind];
+    t(4600, () => caption(c, "helper", `Please ${task} and tell me when you have.`));
+    t(6300, () => caption(c, "her", { drink: "I've had my water, thank you", meal: "I've eaten, thank you", med: "I've taken my tablets, thank you" }[c.kind]));
+    t(7600, () => caption(c, "helper", "Thank you. Goodbye for now."));
+  } else if (outcome === "refused") {
     t(5300, () => caption(c, "her", c.kind === "meal" ? "I'm not hungry yet." : "I'm not thirsty, I had tea."));
     t(6600, () => caption(c, "helper", "That's all right. I'll let Sarah know."));
   } else if (outcome === "concern") {

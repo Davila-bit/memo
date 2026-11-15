@@ -4,10 +4,10 @@ import { ChatCircleText, MagnifyingGlass } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { AskResponse } from "@/lib/contracts";
-import { EVENT_LABEL, formatDay, formatTime } from "@/lib/format";
+import { eventLabel, formatDay, formatTime } from "@/lib/format";
 import { useHearth } from "@/lib/store";
 import { PageHeader } from "../page-header";
-import { EVENT_STYLE } from "../today/timeline";
+import { eventStyle } from "../today/timeline";
 import { Button } from "../ui/button";
 import { Card, Eyebrow } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
@@ -57,7 +57,12 @@ export function AskView() {
       <Card>
         <form noValidate onSubmit={(event) => { event.preventDefault(); void ask(q); }}>
           <label htmlFor="ask-question" className="block font-semibold">Your question</label>
-          <textarea ref={input} id="ask-question" rows={2} maxLength={300} value={q} onChange={(e) => setQ(e.target.value)} aria-invalid={error ? true : undefined} aria-describedby={error ? "ask-error" : undefined} className="mt-2 block w-full resize-y rounded-2xl border border-line-strong bg-surface px-4 py-3 text-lg" placeholder="What would you like to know?" />
+          <textarea ref={input} id="ask-question" rows={2} maxLength={300} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }} aria-invalid={error ? true : undefined} aria-describedby={error ? "ask-error" : undefined} className="mt-2 block w-full resize-y rounded-2xl border border-line-strong bg-surface px-4 py-3 text-lg" placeholder="What would you like to know?" />
           {error ? <p id="ask-error" role="alert" className="mt-2 text-coral-ink">{error}</p> : null}
           <Button type="submit" className="mt-3 w-full sm:w-auto" disabled={busy}><MagnifyingGlass aria-hidden className="size-5" />{busy ? "Looking through the log…" : "Ask"}</Button>
         </form>
@@ -74,11 +79,11 @@ export function AskView() {
             {result.hits.length === 0 ? <p className="text-muted">No matching moments. Try another question or a different day.</p> : (
               <ol className="space-y-4 border-l border-line pl-4" data-testid="ask-hits">
                 {result.hits.map(({ event, snippet }, i) => {
-                  const style = EVENT_STYLE[event.kind];
+                  const style = eventStyle(event);
                   const Icon = style.icon;
                   return <li key={`${event.id}-${i}`} className="rounded-2xl bg-surface p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-semibold ${style.badge}`}><Icon aria-hidden className="size-4" />{EVENT_LABEL[event.kind]}</span>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-semibold ${style.badge}`}><Icon aria-hidden className="size-4" />{eventLabel(event)}</span>
                       <time dateTime={event.ts} className="text-sm text-muted">{formatDay(event.ts, resident?.timezone)} · {formatTime(event.ts, resident?.timezone)}</time>
                     </div>
                     <p className="mt-2 font-medium">{event.summary}</p>

@@ -24,6 +24,7 @@ const TRANSPORTS: { value: Transport; label: string }[] = [
 
 const ENDINGS: { value: CheckinOutcome; label: string }[] = [
   { value: "confirmed", label: "She has it" },
+  { value: "reported", label: "She says she did" },
   { value: "refused", label: "She says no" },
   { value: "no_answer", label: "No answer" },
   { value: "concern", label: "Something's wrong" },

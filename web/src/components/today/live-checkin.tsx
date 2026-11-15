@@ -1,12 +1,12 @@
 "use client";
 
-import { CheckCircle, Eye, PhoneCall, PhoneX, Warning, WarningOctagon, VideoCamera, type Icon } from "@phosphor-icons/react";
+import { CheckCircle, Ear, Eye, PhoneCall, PhoneX, Warning, WarningOctagon, VideoCamera, type Icon } from "@phosphor-icons/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { Checkin, HearthEvent } from "@/lib/contracts";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { confidenceWords, formatTime, isActive, KIND_NOUN, resultTitle } from "@/lib/format";
+import { confidenceWords, formatTime, isActive, isReportedEvent, KIND_NOUN, REPORTED_DETAIL, resultTitle } from "@/lib/format";
 import { useHearth, type Caption } from "@/lib/store";
 import { Button } from "../ui/button";
 import { StatusBadge, type Status } from "../ui/status-badge";
@@ -54,7 +54,7 @@ export function LiveCheckin({ checkin, events }: { checkin: Checkin; events: Hea
   const mum = today?.resident.family_name_for_her ?? "Mum";
   const tz = today?.resident.timezone;
   const active = isActive(checkin);
-  const ev = events.find((e) => e.checkin_id === checkin.id && e.kind !== "note");
+  const ev = events.find((e) => e.checkin_id === checkin.id && (e.kind !== "note" || (checkin.outcome === "reported" && isReportedEvent(e))));
   const [cancelling, setCancelling] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -168,9 +168,10 @@ function Captions({ captions, mum }: { captions: Caption[]; mum: string }) {
   );
 }
 
-type ResultTone = "ok" | "check" | "urgent" | "plain";
+type ResultTone = "ok" | "reported" | "check" | "urgent" | "plain";
 const TONE_CARD: Record<ResultTone, string> = {
   ok: "border-sage/50 bg-sage-tint",
+  reported: "border-sky/50 bg-sky-tint",
   check: "border-amber-fill/60 bg-amber-tint",
   urgent: "border-coral/70 bg-coral-tint",
   plain: "border-line bg-surface",
@@ -178,6 +179,8 @@ const TONE_CARD: Record<ResultTone, string> = {
 
 function resultTone(c: Checkin): ResultTone {
   switch (c.outcome) {
+    case "reported":
+      return "reported";
     case "confirmed":
       return "ok";
     case "refused":
@@ -192,32 +195,33 @@ function resultTone(c: Checkin): ResultTone {
 
 function Result({ checkin, ev, mum, tz, tone, onDone }: { checkin: Checkin; ev?: HearthEvent; mum: string; tz?: string; tone: ResultTone; onDone: () => void }) {
   const when = formatTime(ev?.ts ?? checkin.ended_at ?? checkin.created_at, tz);
-  const I = tone === "ok" ? CheckCircle : tone === "urgent" ? WarningOctagon : tone === "check" ? Warning : PhoneX;
-  const iconCls = tone === "ok" ? "text-sage-ink" : tone === "urgent" ? "text-coral-ink" : tone === "check" ? "text-amber-ink" : "text-muted";
-  const status: Status = tone === "ok" ? "ok" : tone === "urgent" ? "urgent" : tone === "check" ? "check" : "waiting";
-  const word = tone === "ok" ? "Seen" : tone === "urgent" ? "Needs you now" : tone === "check" ? "Needs a look" : "Ended";
+  const I = tone === "reported" ? Ear : tone === "ok" ? CheckCircle : tone === "urgent" ? WarningOctagon : tone === "check" ? Warning : PhoneX;
+  const iconCls = tone === "reported" ? "text-sky-ink" : tone === "ok" ? "text-sage-ink" : tone === "urgent" ? "text-coral-ink" : tone === "check" ? "text-amber-ink" : "text-muted";
+  const status: Status = tone === "reported" ? "info" : tone === "ok" ? "ok" : tone === "urgent" ? "urgent" : tone === "check" ? "check" : "waiting";
+  const word = tone === "reported" ? "Said so" : tone === "ok" ? "Seen" : tone === "urgent" ? "Needs you now" : tone === "check" ? "Needs a look" : "Ended";
   return (
     <div className="flex gap-4">
       <I aria-hidden weight="fill" className={cn("mt-0.5 size-10 shrink-0 sm:size-12", iconCls)} />
       <div className="min-w-0 flex-1">
-        <StatusBadge status={status} size="sm">
+        <StatusBadge status={status} icon={tone === "reported" ? Ear : undefined} size="sm">
           {word}
         </StatusBadge>
         <h2 id="live-heading" className="mt-2 font-serif text-[1.625rem] leading-tight font-medium text-balance sm:text-[1.875rem]">
           {resultTitle(checkin, ev, mum)} <span className="whitespace-nowrap text-muted">· {when}</span>
         </h2>
+        {tone === "reported" ? <p className="mt-2 text-[0.9375rem] text-muted">{REPORTED_DETAIL}</p> : null}
         {ev?.said ? (
           <p className="mt-2 text-[1.0625rem]">
             She said: <q>{ev.said}</q>
           </p>
         ) : null}
-        {ev?.evidence ? (
+        {ev?.evidence && tone !== "reported" ? (
           <p className="mt-2 text-[0.9375rem] text-muted">
             What the helper saw: {lowerFirst(ev.evidence)}
             {checkin.outcome === "confirmed" ? <span className="text-ink"> · {confidenceWords(ev.confidence)}</span> : null}
           </p>
         ) : null}
-        {!ev && checkin.summary ? <p className="mt-2 text-[0.9375rem] text-muted">{checkin.summary}</p> : null}
+        {!ev && checkin.summary && tone !== "reported" ? <p className="mt-2 text-[0.9375rem] text-muted">{checkin.summary}</p> : null}
         <Button variant="quiet" size="sm" className="mt-4" onClick={onDone}>
           Done
         </Button>

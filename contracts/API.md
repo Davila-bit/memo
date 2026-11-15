@@ -119,17 +119,26 @@ check-in is active (10 s otherwise). Only captions need the socket.
 |---|---|---|
 | `POST /internal/checkins/{id}/status` | `AgentStatus` → `ToolResult` | status `connected` / `watching`, broadcast |
 | `POST /internal/checkins/{id}/caption` | `AgentCaption` → 204 | broadcast `caption`; not stored, not logged |
-| `POST /internal/checkins/{id}/confirm_drink` | `ToolConfirmDrink` → `ToolResult` | event `drink`, outcome `confirmed`, notify "✓ drank" |
-| `POST /internal/checkins/{id}/confirm_meal` | `ToolConfirmMeal` → `ToolResult` | event `meal`, outcome `confirmed` |
-| `POST /internal/checkins/{id}/confirm_med` | `ToolConfirmMed` → `ToolResult` | event `med`, outcome `confirmed` |
+| `POST /internal/checkins/{id}/confirm_drink` | `ToolConfirmDrink` → `ToolResult` | observed `drink` / `confirmed`, or `note` / `reported` (rules below) |
+| `POST /internal/checkins/{id}/confirm_meal` | `ToolConfirmMeal` → `ToolResult` | observed `meal` / `confirmed`, or `note` / `reported` |
+| `POST /internal/checkins/{id}/confirm_med` | `ToolConfirmMed` → `ToolResult` | observed `med` / `confirmed`, or `note` / `reported` |
 | `POST /internal/checkins/{id}/report_refusal` | `ToolReportRefusal` → `ToolResult` | event `refused`, alert (tier `check`), outcome `refused` |
 | `POST /internal/checkins/{id}/flag_concern` | `ToolFlagConcern` → `ToolResult` | event `concern`, alert (tier `urgent`), urgent notify, outcome `concern` |
 | `POST /internal/checkins/{id}/end` | `ToolEndCheckin` → `ToolResult` | `CallService.end`; status `ended` |
 | `GET /internal/checkins/{id}` | → `Checkin` | agent may poll as a fallback "go" signal |
 
-Rules: confidence below 0.5 on a confirm is stored as a `note`, not a confirmation, and the reply
-`say` asks the agent to check once more. `evidence` and `said` pass through `Redactor` before storage.
+Rules: A confirm with confidence ≥ 0.5 is an observation: event `drink`/`meal`/`med`, outcome
+`confirmed`. A confirm with confidence < 0.5 whose evidence starts with `Said:` is a report: stored
+as a `note` event with `for_kind` set, outcome `reported`, summary like 'Said she had some water.
+The helper couldn't see her on this call.' Any other confirm below 0.5 is stored as a `note` with
+no outcome and the reply asks the helper to check once more.
+For reports, `said` is the trimmed text after `Said:`; there is no alert, just a normal notification.
+Spoken text in `evidence` and `said` passes through `Redactor` before storage; the `Said:` protocol
+marker is preserved.
 An outcome can be set once; later tool calls for the same check-in return `ok: true` without a new event.
+
+`StartCheckinRequest.mock_outcome` selects the mock ending: `confirmed`, `reported` (she says she
+did it; not seen), `refused`, `no_answer`, `concern` or `error`.
 
 ## 7. Check-in lifecycle (owned by `CheckinService` in the core)
 
@@ -150,7 +159,9 @@ POST /api/checkins ─► queued ─► CallService.start(checkin, job, callback
 - **`call_finished` semantics:** before live it carries `"no_answer"` or `"error"` + reason. After live
   it always carries `outcome=None`, plus an error string when the end was not clean ("time budget
   reached", a Chert failure). The core then keeps the outcome the agent reported; if none was
-  reported it sets `error` itself.
+  reported it sets `error` itself. Both `confirmed` (observed) and `reported` (said, not seen) are
+  completed outcomes kept when the call ends; reports never create a missed event or alert and
+  do not count toward fluid totals or observed meal/tablet aggregates.
 - `CallService.kiosk_token` may raise `hearth.calls.CallsUnavailable` (plain sentence): map to 503.
   If the service has `aclose()`, the core calls it on shutdown.
 - One check-in at a time (the Chert line allows one call).

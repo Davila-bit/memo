@@ -51,6 +51,16 @@ export function formatLitres(ml: number): string {
 
 export const KIND_NOUN: Record<CheckinKind, string> = { drink: "water", meal: "a meal", med: "tablets" };
 export const KIND_LABEL: Record<CheckinKind, string> = { drink: "Water", meal: "Meal", med: "Tablets" };
+export const REPORTED_DETAIL = "The helper heard her say so but couldn't see her on this call.";
+
+/** Reports are notes with a check-in kind and a spoken gist, never observed actions. */
+export function isReportedEvent(ev: HearthEvent): boolean {
+  return ev.kind === "note" && ev.for_kind !== null && ev.confidence < 0.5 && ev.evidence.startsWith("Said:");
+}
+
+export function eventLabel(ev: HearthEvent): string {
+  return isReportedEvent(ev) ? "Said so" : EVENT_LABEL[ev.kind];
+}
 
 export const EVENT_LABEL: Record<EventKind, string> = {
   drink: "Drink",
@@ -136,6 +146,8 @@ export function isActive(c: Checkin | null | undefined): boolean {
 
 export function resultTitle(c: Checkin, ev: HearthEvent | undefined, mum: string): string {
   switch (c.outcome) {
+    case "reported":
+      return `${mum} says ${c.kind === "drink" ? "she's had her water" : c.kind === "meal" ? "she has eaten" : "she took her tablets"}`;
     case "confirmed":
       return ev?.summary ?? `${mum} ${c.kind === "drink" ? "had a drink" : c.kind === "meal" ? "ate" : "took her tablets"}`;
     case "refused":

@@ -4,7 +4,8 @@
 export type CheckinKind = "drink" | "meal" | "med";
 export type Transport = "facetime" | "kiosk" | "mock";
 export type CheckinStatus = "queued" | "ringing" | "connected" | "watching" | "ended";
-export type CheckinOutcome = "confirmed" | "refused" | "no_answer" | "concern" | "error";
+// reported = she said she did it; not seen.
+export type CheckinOutcome = "confirmed" | "reported" | "refused" | "no_answer" | "concern" | "error";
 export type EventKind = "drink" | "meal" | "med" | "refused" | "missed" | "concern" | "note";
 export type EventSource = "facetime" | "kiosk" | "manual" | "mock" | "seed";
 export type Amount = "sip" | "some" | "most" | "all";
