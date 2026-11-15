@@ -134,7 +134,7 @@ function seed(): State {
   const cues: Cue[] = [
     { id: "cue_mug", kind: "drink", title: "Her blue mug", line: "Margaret, let's have some water.", image_url: null, slot_label: null },
     { id: "cue_plate", kind: "meal", title: "Her lunch plate", line: "Shall we have a bite to eat?", image_url: null, slot_label: null },
-    { id: "cue_pills", kind: "med", title: "Pill box", line: "Time for your tablets.", image_url: null, slot_label: "MORNING" },
+    { id: "cue_pills", kind: "med", title: "Pill box", line: "Time for your tablets.", image_url: null, slot_label: ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date().getDay()] },
   ];
   const sch = (sid: string, kind: CheckinKind, time: string, label: string, cue: string): ScheduleItem => ({
     id: sid,
@@ -154,7 +154,7 @@ function seed(): State {
     sch("sch_drink_1530", "drink", "15:30", "Afternoon water", "cue_mug"),
     sch("sch_meal_supper", "meal", "18:00", "Supper", "cue_plate"),
     sch("sch_drink_1800", "drink", "18:00", "Water with supper", "cue_mug"),
-    sch("sch_med_pm", "med", "19:00", "Evening tablets", "cue_pills"),
+    { ...sch("sch_med_pm", "med", "19:00", "Evening tablets", "cue_pills"), enabled: false }, // one tablet time a day
   ];
 
   const events: HearthEvent[] = [];
@@ -184,7 +184,6 @@ function seed(): State {
     }
     events.push(
       ev(at(d, "18:20", base), "meal", "Mum ate most of her supper", "Showed her plate, ate steadily", { amount: "most", confidence: 0.8 }),
-      ev(at(d, "19:03", base), "med", "Mum took her evening tablets", "Opened the evening slot, tablet to mouth, sip of water, showed it empty", { med_steps: allSteps, confidence: 0.87 }),
     );
   }
 

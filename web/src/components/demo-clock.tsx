@@ -60,6 +60,12 @@ export function DemoClock() {
         <p className="font-serif text-5xl tabular">{label}</p>
         <p className="mt-1 text-sm text-muted">{today.next_checkin ? `Next scheduled: ${today.next_checkin.label.toLowerCase()}` : "Nothing else scheduled today."}</p>
         <div className="mt-5 grid grid-cols-2 gap-3">
+          <Button variant="quiet" disabled={busy} onClick={() => run(() => api.setClock({ advance_minutes: -1 }), "Moved back a minute.")}>
+            <Rewind aria-hidden className="size-5" weight="light" /> −1 min
+          </Button>
+          <Button variant="quiet" disabled={busy} onClick={() => run(() => api.setClock({ advance_minutes: 1 }), "Moved on a minute.")}>
+            <FastForward aria-hidden className="size-5" weight="light" /> +1 min
+          </Button>
           <Button variant="quiet" disabled={busy} onClick={() => run(() => api.setClock({ advance_minutes: -30 }), "Moved back 30 minutes.")}>
             <Rewind aria-hidden className="size-5" /> −30 min
           </Button>

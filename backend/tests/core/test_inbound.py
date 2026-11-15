@@ -89,7 +89,7 @@ def test_accepts_without_session_and_builds_inbound_job(inbound_client):
     assert c.portal.call(c.app.state.svc.store.active_checkin).status == "ringing"
 
 
-@pytest.mark.parametrize(("hour", "minute", "expected"), [(19, 0, "med"), (12, 30, "meal"), (3, 0, "drink")])
+@pytest.mark.parametrize(("hour", "minute", "expected"), [(8, 15, "med"), (12, 30, "meal"), (3, 0, "drink")])
 def test_nearest_enabled_schedule_or_default(inbound_client, hour, minute, expected):
     calls = IncomingCalls()
     c = inbound_client(calls)

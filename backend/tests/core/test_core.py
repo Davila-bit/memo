@@ -232,7 +232,7 @@ def test_demo_clock_and_schedule_tick(make_client):
 
 
 def test_week_shape(make_client, monkeypatch):
-    now = datetime(2026, 11, 15, 19, tzinfo=UTC)  # 2 pm local: 13 scheduled tablet doses so far
+    now = datetime(2026, 11, 15, 19, tzinfo=UTC)  # 2 pm local
     monkeypatch.setattr(DemoClock, "now", lambda self: now)
     client = make_client()
     w = Week.model_validate(client.get("/api/week").json())
@@ -250,8 +250,8 @@ def test_week_shape(make_client, monkeypatch):
         assert day.meals_confirmed == sum(e.kind == "meal" for e in events)
     assert all(450 <= d.fluid_ml <= 1150 for d in w.days)
     assert [d.fluid_ml for d in w.days[:-1]] == sorted(d.fluid_ml for d in w.days[:-1])
-    assert sum(d.meds_confirmed for d in w.days) == 11
-    assert sum(d.meds_expected for d in w.days) == 13
+    assert sum(d.meds_confirmed for d in w.days) == 5  # one tablet time a day, two mornings missed
+    assert sum(d.meds_expected for d in w.days) == 7
     assert sum(d.drinks_refused for d in w.days) == sum(d.checkins_missed for d in w.days) == 2
     assert w.med_streak_days == 2  # today and yesterday; the previous morning dose was missed
 
@@ -327,7 +327,7 @@ def test_today_privacy_and_delete(client):
     t = client.get("/api/today").json()
     assert t["resident"]["preferred_name"] == "Margaret" and t["fluid_target_ml"] == 1500
     assert t["resident"]["phone"] is None
-    assert t["meds_expected"] == 2 and t["next_checkin"] is not None
+    assert t["meds_expected"] == 1 and t["next_checkin"] is not None
     p = client.get("/api/privacy").json()
     assert p["counts"]["frames_stored"] == 0 and p["counts"]["recordings"] == 0 and p["counts"]["events"] > 10
     assert p["retention_days_events"] == 90 and "Google Gemini" in p["in_transit"]
@@ -342,7 +342,12 @@ def test_cues_slot_label_and_photo(client):
     cues = {c["id"]: c for c in client.get("/api/cues").json()}
     assert set(cues) == {"cue-mug", "cue-plate", "cue-pills"}
     label = cues["cue-pills"]["slot_label"]
-    assert label and " · " in label and label.split(" · ")[1] in ("MORNING", "EVENING")
+    assert label in ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
+    evening = next(i for i in client.get("/api/schedule").json() if i["id"] == "med-1900")
+    assert evening["enabled"] is False  # one tablet time a day in the demo; the evening one is there, switched off
+    assert client.put("/api/schedule/med-1900", json={**evening, "enabled": True}).status_code == 200
+    two = {c["id"]: c for c in client.get("/api/cues").json()}["cue-pills"]["slot_label"]
+    assert two.startswith(label + " · ") and two.split(" · ")[1] in ("MORNING", "EVENING")
     png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
     r = client.post("/api/cues/cue-mug/photo", files={"file": ("mug.png", png, "image/png")})
     assert r.status_code == 200, r.text
@@ -369,7 +374,7 @@ def test_schedule_crud_and_manual_event(client):
 
 
 def test_ask_and_digest(client):
-    a = client.post("/api/ask", json={"q": "did she take her evening tablets?"}).json()
+    a = client.post("/api/ask", json={"q": "did she take her tablets?"}).json()
     assert a["engine"] == "fallback" and a["hits"]
     d = client.get("/api/digest").json()
     assert d["generated_by"] == "template" and d["text"]

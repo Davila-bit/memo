@@ -101,7 +101,7 @@ class Cue(Model):
     title: str  # "Your blue mug"
     line: str  # one very large line on the card: "Time for some water, Margaret"
     image_url: str | None = None  # served by the API under /media/cues/...; a family photo of the object
-    slot_label: str | None = None  # meds only: "TUE · MORNING"
+    slot_label: str | None = None  # meds only: the day's compartment, "TUE"
 
 
 class ScheduleItem(Model):
