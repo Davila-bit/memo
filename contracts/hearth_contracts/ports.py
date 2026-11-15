@@ -87,6 +87,10 @@ class Notifier(Protocol):
 class Search(Protocol):
     async def index(self, event: HearthEvent) -> None: ...
 
+    async def clear(self) -> None:
+        """Remove indexed event copies for privacy deletion; no-op without an index."""
+        ...
+
     async def ask(self, q: str, now: datetime, recent: list[HearthEvent]) -> AskResponse:
         """Answer a natural-language question about the log. `recent` is the fallback corpus."""
         ...

@@ -14,7 +14,14 @@ from hearth.integrations import digest as digest_mod
 from hearth.integrations.askplan import make_plan
 from hearth.integrations.notify import HearthNotifier, ntfy_body, push_payload
 from hearth.integrations.redact import RegexRedactor, regex_redact
-from hearth.integrations.search import FallbackSearch, _fields_ok, _sort_ok, event_to_doc, schema
+from hearth.integrations.search import (
+    FallbackSearch,
+    _fields_ok,
+    _sort_ok,
+    doc_to_event,
+    event_to_doc,
+    schema,
+)
 
 from .fixture import NOW, TODAY_DRINKS, TODAY_ML, events
 from .test_search_live import QUESTIONS
@@ -85,6 +92,9 @@ def test_doc_and_schema() -> None:
     facets = {f["name"] for f in s["fields"] if f.get("facet")}
     assert {"kind", "day", "daypart", "weekday", "source"} <= facets
     assert s["default_sorting_field"] == "ts_unix" and s["synonym_sets"] == ["x-syn"]
+    refused = events()[0].model_copy(update={"kind": "refused", "for_kind": "med"})
+    assert doc_to_event(event_to_doc(refused)) == refused
+    assert {"name": "for_kind", "type": "string", "index": False, "optional": True} in s["fields"]
 
 
 def test_filter_allow_list() -> None:

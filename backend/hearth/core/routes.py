@@ -7,6 +7,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, WebSocket
@@ -164,8 +165,8 @@ async def cancel_checkin(checkin_id: str, request: Request) -> Checkin:
 
 
 @api.get("/alerts", response_model=list[Alert])
-async def alerts(request: Request, status: str | None = None) -> list[Alert]:
-    return await svc(request).store.list_alerts(status or None)
+async def alerts(request: Request, status: Literal["open", "handled", "all"] = "open") -> list[Alert]:
+    return await svc(request).store.list_alerts(None if status == "all" else status)
 
 
 @api.post("/alerts/{alert_id}/action", response_model=Alert)
@@ -237,7 +238,7 @@ PHOTO_MAX = 5 * 1024 * 1024
 
 
 @api.post("/cues/{cue_id}/photo", response_model=Cue)
-async def cue_photo(cue_id: str, request: Request, file: UploadFile = File(...)) -> Cue:
+async def cue_photo(cue_id: str, request: Request, file: Annotated[UploadFile, File()]) -> Cue:
     s = svc(request)
     cue = await s.store.get_cue(cue_id)
     if cue is None:
@@ -344,7 +345,7 @@ async def delete_data(request: Request) -> dict[str, int]:
         raise HTTPException(status_code=409, detail="A check-in is running. Please try again when it ends.")
     n = await s.store.delete_all_events()
     await s.store.delete_checkins_and_alerts()
-    # TODO(contract): Search has no delete; indexed copies in Typesense are not removed here.
+    await s.search.clear()
     log.info("privacy: deleted %d events and all check-ins and alerts", n)
     return {"deleted_events": n}
 

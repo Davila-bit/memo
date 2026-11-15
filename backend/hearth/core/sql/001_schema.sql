@@ -5,7 +5,7 @@
 
 CREATE SCHEMA IF NOT EXISTS hearth;
 
--- The only durable record of a check-in. Columns = HearthEvent (+ checkin_kind: what was asked for).
+-- The only durable record of a check-in. Columns = HearthEvent.
 -- Hypertable on ts, 7-day chunks, columnstore segmented by resident (TimescaleDB 2.20+ syntax;
 -- the columnstore policy is created automatically, after one chunk interval).
 CREATE TABLE IF NOT EXISTS hearth.events (
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS hearth.events (
     ts               timestamptz NOT NULL,
     resident_id      text        NOT NULL,
     checkin_id       text,
-    checkin_kind     text,
+    for_kind         text,
     kind             text        NOT NULL,
     source           text        NOT NULL,
     confidence       double precision NOT NULL DEFAULT 1.0,
@@ -32,6 +32,19 @@ CREATE TABLE IF NOT EXISTS hearth.events (
     tsdb.segmentby = 'resident_id',
     tsdb.orderby = 'ts DESC'
 );
+
+-- Migrate existing databases in place, preserving values and continuous-aggregate dependencies.
+-- PostgreSQL tracks those dependencies by column identity, so a rename keeps the views valid.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'hearth' AND table_name = 'events' AND column_name = 'checkin_kind')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_schema = 'hearth' AND table_name = 'events' AND column_name = 'for_kind') THEN
+        ALTER TABLE hearth.events RENAME COLUMN checkin_kind TO for_kind;
+    END IF;
+END;
+$$;
 
 CREATE INDEX IF NOT EXISTS events_resident_ts ON hearth.events (resident_id, ts DESC);
 
@@ -88,7 +101,7 @@ SELECT time_bucket(INTERVAL '1 day', ts, 'America/New_York') AS day,
        resident_id,
        coalesce(sum(volume_ml_est) FILTER (WHERE kind = 'drink'), 0)::bigint AS fluid_ml,
        count(*) FILTER (WHERE kind = 'drink') AS drinks_confirmed,
-       count(*) FILTER (WHERE kind = 'refused' AND coalesce(checkin_kind, 'drink') = 'drink') AS drinks_refused,
+       count(*) FILTER (WHERE kind = 'refused' AND coalesce(for_kind, 'drink') = 'drink') AS drinks_refused,
        count(*) FILTER (WHERE kind = 'missed') AS checkins_missed
 FROM hearth.events
 GROUP BY 1, 2
@@ -101,7 +114,7 @@ SELECT time_bucket(INTERVAL '1 day', ts, 'America/New_York') AS day,
        resident_id,
        count(*) FILTER (WHERE kind = 'med') AS meds_confirmed,
        count(*) FILTER (WHERE kind = 'meal') AS meals_confirmed,
-       count(*) FILTER (WHERE kind = 'refused' AND checkin_kind = 'med') AS meds_refused
+       count(*) FILTER (WHERE kind = 'refused' AND for_kind = 'med') AS meds_refused
 FROM hearth.events
 GROUP BY 1, 2
 WITH NO DATA;

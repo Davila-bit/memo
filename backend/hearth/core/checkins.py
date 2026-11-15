@@ -18,6 +18,7 @@ from hearth_contracts import (
     Alert,
     AlertActionRequest,
     Checkin,
+    CheckinKind,
     Cue,
     DayStats,
     HearthEvent,
@@ -43,7 +44,7 @@ from hearth_contracts import (
 from . import wording
 from .clock import Bus, DemoClock, at_local, fmt_short, fmt_time, in_quiet_hours, local_day_bounds
 from .settings import Settings
-from .store import MemoryStore, Store
+from .store import Store
 
 log = logging.getLogger("hearth.core")
 
@@ -150,8 +151,9 @@ class CheckinService:
             log.warning("redactor failed (%s); dropping the text", type(e).__name__)
             return "[removed]"
 
-    async def add_event(self, ev: HearthEvent, checkin_kind: str | None) -> HearthEvent:
-        await self.store.add_event(ev, checkin_kind)
+    async def add_event(self, ev: HearthEvent, for_kind: CheckinKind | None) -> HearthEvent:
+        ev = ev.model_copy(update={"for_kind": for_kind})
+        await self.store.add_event(ev)
         await self._publish(WsEvent(event=ev))
         try:
             await self.search.index(ev)
@@ -626,23 +628,20 @@ class CheckinService:
     async def _python_day_stats(self, days: list[date], tz: str) -> list[DayStats]:
         start, _ = local_day_bounds(days[0], tz)
         _, end = local_day_bounds(days[-1], tz)
-        if isinstance(self.store, MemoryStore):
-            pairs = [(e, k) for e, k in self.store.events_with_kind() if start <= e.ts < end]
-        else:
-            pairs = [(e, None) for e in await self.store.list_events(since=start, until=end, limit=100000)]
+        events = await self.store.list_events(since=start, until=end, limit=100000)
         z = ZoneInfo(tz)
         out = []
         for d in days:
-            dev = [(e, k) for e, k in pairs if e.ts.astimezone(z).date() == d]
+            dev = [e for e in events if e.ts.astimezone(z).date() == d]
             out.append(DayStats(
                 day=d.isoformat(),
-                fluid_ml=sum(e.volume_ml_est or 0 for e, _ in dev if e.kind == "drink"),
-                drinks_confirmed=sum(1 for e, _ in dev if e.kind == "drink"),
-                drinks_refused=sum(1 for e, k in dev if e.kind == "refused" and (k or "drink") == "drink"),
-                meals_confirmed=sum(1 for e, _ in dev if e.kind == "meal"),
-                meds_confirmed=sum(1 for e, _ in dev if e.kind == "med"),
+                fluid_ml=sum(e.volume_ml_est or 0 for e in dev if e.kind == "drink"),
+                drinks_confirmed=sum(1 for e in dev if e.kind == "drink"),
+                drinks_refused=sum(1 for e in dev if e.kind == "refused" and (e.for_kind or "drink") == "drink"),
+                meals_confirmed=sum(1 for e in dev if e.kind == "meal"),
+                meds_confirmed=sum(1 for e in dev if e.kind == "med"),
                 meds_expected=0,
-                checkins_missed=sum(1 for e, _ in dev if e.kind == "missed"),
+                checkins_missed=sum(1 for e in dev if e.kind == "missed"),
             ))
         return out
 

@@ -8,9 +8,13 @@ It re-seeds the `hearth` schema (same as POST /api/demo/reset).
 from __future__ import annotations
 
 import os
+from datetime import date
+from zoneinfo import ZoneInfo
 
 import pytest
 from hearth_contracts import Today, Week
+
+from hearth.core.seed import TZ, history, schedule
 
 from .conftest import wait_ended
 
@@ -21,6 +25,8 @@ pytestmark = pytest.mark.skipif(not os.environ.get("TIGER_DATABASE_URL"), reason
 def tiger(make_client):
     c = make_client(database_url=os.environ["TIGER_DATABASE_URL"])
     assert c.get("/api/health").json()["integrations"]["tiger"] == "ok"
+    # Startup migration must be safe to apply again on an existing schema.
+    c.portal.call(c.app.state.svc.store.apply_schema)
     assert c.post("/api/demo/reset").status_code == 200
     return c
 
@@ -46,14 +52,22 @@ def test_tiger_happy_path_and_week(tiger):
 
     # The aggregates agree with a plain Python count over the same rows.
     svc = c.app.state.svc
-    days = [__import__("datetime").date.fromisoformat(d.day) for d in w1.days]
+    days = [date.fromisoformat(d.day) for d in w1.days]
     py = c.portal.call(svc._python_day_stats, days, "America/New_York")
     for a, b in zip(w1.days, py):
         assert (a.fluid_ml, a.drinks_confirmed, a.drinks_refused, a.meals_confirmed, a.meds_confirmed,
                 a.checkins_missed) == (b.fluid_ml, b.drinks_confirmed, b.drinks_refused, b.meals_confirmed,
                                        b.meds_confirmed, b.checkins_missed), (a, b)
-    hist = w1.days[-4:-1]
-    assert sum(d.meds_confirmed for d in hist) == 5 and sum(d.drinks_refused for d in hist) == 1
+    hist = w1.days[:-1]
+    seeded = history(before.now, schedule())
+    prior = [e for e in seeded if e.ts.astimezone(ZoneInfo(TZ)).date().isoformat() != w1.days[-1].day]
+    assert all(450 <= d.fluid_ml <= 1150 for d in hist)
+    assert sum(d.meds_confirmed for d in hist) == sum(e.kind == "med" for e in prior)
+    assert sum(d.drinks_refused for d in hist) == sum(e.kind == "refused" for e in prior)
+    # Refusals and missed tablet calls survive the database round trip with their purpose.
+    evs = c.get("/api/events", params={"limit": 500}).json()
+    assert all(e["for_kind"] == "drink" for e in evs if e["kind"] == "refused")
+    assert all(e["for_kind"] == "med" for e in evs if e["kind"] == "missed")
 
     # Privacy delete really deletes, and the aggregates follow.
     n = c.delete("/api/privacy/data").json()["deleted_events"]

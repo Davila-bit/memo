@@ -38,6 +38,7 @@ export interface Resident {
   preferred_name: string;
   family_name_for_her: string;
   daughter_name: string;
+  phone: string | null;
   fluid_target_ml: number;
   timezone: string;
   quiet_hours: [string, string];
@@ -89,6 +90,7 @@ export interface HearthEvent {
   resident_id: string;
   checkin_id: string | null;
   kind: EventKind;
+  for_kind: CheckinKind | null;
   source: EventSource;
   confidence: number; // 0..1
   summary: string;
@@ -149,6 +151,11 @@ export interface ManualEventRequest {
 
 export interface AskRequest {
   q: string;
+}
+
+export interface PushSubscription {
+  endpoint: string;
+  keys: Record<string, string>;
 }
 
 export interface ClockRequest {
