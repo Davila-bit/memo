@@ -52,11 +52,14 @@ These run on every CI build; none of them was a separate manual review.
 - **Delete dialog** (`privacy.spec.ts`): opened from the keyboard, the destructive button is not the first focus, Escape cancels, and focus goes back to the button that opened it.
 - **Colour contrast of the palette** (`web/scripts/contrast.py`): text uses the darker `*-ink` colours, which pass 4.5:1 on every background they are used on.
 - **Status is never colour alone:** a design rule (icon + word + colour, `StatusBadge`), checked by the text assertions in the specs, not by a separate audit.
+- **Reflow, WCAG 1.4.10** (`a11y-extra.spec.ts`): no horizontal scrolling at 320 px and 640 px wide on seven pages (login, Today, Week, Schedule, Ask, Privacy, Setup), with a full-page screenshot of each. The 640 px width stands in for 200% zoom of a 1280 px window. This is an emulated viewport in Chromium, not browser zoom on a real device, and it checks page width, not that every dialog reflows.
+- **Reduced motion, WCAG 2.3.3** (`a11y-extra.spec.ts`): with `prefers-reduced-motion: reduce` emulated, a practice check-in runs from start to result, and at six points on the way no running animation lasts longer than 200 ms or loops forever. The same test without the setting does catch the pulse and the 300 ms entrances, so it is measuring something. It only covers Today and the check-in flow.
+- **Keyboard on every page, WCAG 2.1.1 and 2.4.7** (`a11y-extra.spec.ts`, laptop size): on Week, Schedule, Privacy and Setup, Tab through the whole page once; every stop must be visible and show a focus outline or ring. On Schedule, a new check-in is added with only Tab, Enter and typing (label and time) and appears in the list. Ask is not in this check yet (it was being rebuilt), and dialogs are covered only where a spec above opens them.
 
 ## Not done yet
 
 - **No screen-reader pass** with VoiceOver, TalkBack or NVDA has been done.
 - **No real devices:** phone size is emulated in desktop Chromium. Safari and Firefox are not tested.
-- **Keyboard-only** covers the Today check-in flow end to end; other pages have only the targeted checks above.
-- **Not tested:** 200% zoom and reflow at 320 px, reduced motion, Windows forced colours (high contrast), voice control.
+- **Keyboard on Ask** has not been walked through Tab by Tab, and no page has been checked for focus being hidden behind the fixed bottom bar on a phone (WCAG 2.4.11).
+- **Not tested:** real browser zoom, Windows forced colours (high contrast), voice control.
 - **No testing with older adults or carers** using the app.
