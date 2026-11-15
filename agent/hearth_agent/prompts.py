@@ -43,6 +43,8 @@ def instructions(job: AgentJob) -> str:
     if job.kind == "drink":
         task = f"""THE TASK: a drink of water.
 1. Ask her to hold up {obj} so you can see it. Wait.
+   If she is holding a different cup, mug or glass, that is fine: say "that one is fine" and carry on with
+   the one she has. Do not ask for {obj} again.
 2. When you can see it, ask her to have a drink. Wait and WATCH.
 3. Ask her to show you the cup again.
 4. Only if you SAW her raise the cup to her mouth and tilt it, call confirm_drink(amount, confidence,
