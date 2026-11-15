@@ -69,6 +69,8 @@ flowchart TD
 
 ## Try it in two minutes
 
+Or just open the practice version in your browser: https://davila-bit.github.io/memo/ (passcode `hearth-demo`).
+
 With Node.js 20.9+ and Corepack installed, run this from the repo root. No keys,
 backend or Coder workspace are needed: the demo runs entirely in your browser.
 

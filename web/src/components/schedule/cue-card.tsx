@@ -3,6 +3,7 @@
 import { Drop, ForkKnife, Pill } from "@phosphor-icons/react";
 import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
+import { withBase } from "@/lib/base";
 import type { Cue } from "@/lib/contracts";
 import { Button } from "../ui/button";
 import { Card, Eyebrow } from "../ui/card";
@@ -67,7 +68,7 @@ export function CueCard({ cue, onChange, notify: toast }: { cue: Cue; onChange: 
         {preview || cue.image_url ? (
           // Family uploads and local object URLs do not use the image optimiser.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview ?? cue.image_url!} alt={cue.title} className="h-full w-full object-contain" />
+          <img src={withBase(preview ?? cue.image_url!)} alt={cue.title} className="h-full w-full object-contain" />
         ) : <div className="text-center text-sage-ink"><Icon aria-hidden className="mx-auto size-10" weight="duotone" /><p className="mt-2 text-sm">Her own {cue.kind === "drink" ? "mug" : cue.kind === "meal" ? "plate" : "pill box"}, when you add a photo</p></div>}
       </div>
       <h3 className="font-serif text-2xl">{cue.title}</h3>

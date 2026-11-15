@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
+import { withBase } from "@/lib/base";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -21,8 +22,8 @@ export const metadata: Metadata = {
   applicationName: "Memo",
   appleWebApp: { capable: true, title: "Memo", statusBarStyle: "default" },
   icons: {
-    icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }],
-    apple: "/icons/apple-touch-icon.png",
+    icon: [{ url: withBase("/icons/icon.svg"), type: "image/svg+xml" }],
+    apple: withBase("/icons/apple-touch-icon.png"),
   },
 };
 

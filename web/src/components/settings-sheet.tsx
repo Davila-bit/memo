@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
+import { IS_STATIC, withBase } from "@/lib/base";
 import { cn } from "@/lib/cn";
 import { useHearth } from "@/lib/store";
 import { Button, buttonClasses } from "./ui/button";
@@ -45,7 +46,7 @@ function usePush(open: boolean) {
   const [state, setState] = useState<PushState>("unknown");
   const [key, setKey] = useState<string | null>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open || IS_STATIC) return;
     let cancelled = false;
     (async () => {
       if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
@@ -71,12 +72,12 @@ function usePush(open: boolean) {
   }, [open]);
 
   const enable = async () => {
-    if (!key) return;
+    if (!key || IS_STATIC) return;
     setState("busy");
     try {
       const perm = await Notification.requestPermission();
       if (perm !== "granted") return setState(perm === "denied" ? "denied" : "off");
-      const reg = (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.register("/sw.js"));
+      const reg = (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.register(withBase("/sw.js")));
       await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
       const json = sub.toJSON();
@@ -152,7 +153,7 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
           </button>
         </div>
 
-        {push !== "no-key" && push !== "unknown" ? (
+        {!IS_STATIC && push !== "no-key" && push !== "unknown" ? (
           <div className="flex items-start gap-4 py-5">
             {push === "on" ? (
               <Bell aria-hidden className="size-7 shrink-0 text-sage-ink" weight="duotone" />
