@@ -43,6 +43,7 @@ from hearth_contracts import (
 
 from . import wording
 from .clock import Bus, DemoClock, at_local, fmt_short, fmt_time, in_quiet_hours, local_day_bounds
+from .route import RouteService
 from .settings import Settings
 from .store import Store
 
@@ -83,6 +84,7 @@ class CheckinService:
         self.digest = digest
         self.redactor = redactor
         self.real_calls = real_calls
+        self.route = RouteService(clock, settings, real_calls)
         self.mock_calls = mock_calls
         self.lock = asyncio.Lock()
         self.services: dict[str, Any] = {}  # checkin_id -> CallService that runs it
@@ -258,7 +260,12 @@ class CheckinService:
             if await self.store.active_checkin() is not None:
                 raise Conflict("A check-in is already running. Please wait for it to finish.")
             r = await self.resident()
-            transport, service = self._pick_service(req.transport or self.settings.transport_default)
+            requested = req.transport or self.settings.transport_default
+            if requested == "auto":
+                decision = self.route.decide()
+                requested = decision.transport
+                log.info("route: auto -> %s (%s)", requested, decision.reason)
+            transport, service = self._pick_service(requested)
             cue = await self._cue_for(req.kind, req.cue_id, r)
             cid = new_id("chk")
             room = f"kiosk-{self.settings.kiosk_device}" if transport == "kiosk" else f"checkin-{cid}"

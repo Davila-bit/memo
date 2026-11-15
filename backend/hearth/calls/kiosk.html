@@ -101,6 +101,21 @@
   const WHO = q.get("daughter") || "Sarah";
   const ANSWER_MS = 3000;
   const READY_FLAG = "hearth-kiosk-ready:" + DEVICE;
+  // Presence is independent of call and watch media; failures wait for the next beat.
+  const ua = navigator.userAgent;
+  const platform = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+    ? "ios" : /Android/.test(ua) ? "android" : "other";
+  async function heartbeat() {
+    try {
+      await fetch(`/internal/kiosk/heartbeat?key=${encodeURIComponent(KEY)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+        body: JSON.stringify({ device: DEVICE, platform, visible: document.visibilityState === "visible" }),
+      });
+    } catch (e) { /* presence will expire if the server cannot be reached */ }
+  }
+  setInterval(heartbeat, 10000);
+  document.addEventListener("visibilitychange", heartbeat);
+  void heartbeat();
   const $ = (id) => document.getElementById(id);
   document.querySelectorAll(".who").forEach((el) => (el.textContent = WHO));
 

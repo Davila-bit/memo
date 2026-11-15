@@ -2,7 +2,7 @@
 
 import { Drop, ForkKnife, Pill, PhoneCall, type Icon } from "@phosphor-icons/react";
 import { useEffect, useId, useState } from "react";
-import type { CheckinKind, CheckinOutcome, Transport } from "@/lib/contracts";
+import type { CheckinKind, CheckinOutcome, RequestedTransport, Route } from "@/lib/contracts";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { demoEnabled, IS_MOCK } from "@/lib/env";
@@ -16,7 +16,8 @@ const KINDS: { value: CheckinKind; label: string; hint: string; icon: Icon }[] =
   { value: "med", label: "Tablets", hint: "Shows the right pill-box slot", icon: Pill },
 ];
 
-const TRANSPORTS: { value: Transport; label: string }[] = [
+const TRANSPORTS: { value: RequestedTransport; label: string }[] = [
+  { value: "auto", label: "Auto" },
   { value: "facetime", label: "FaceTime" },
   { value: "kiosk", label: "Kitchen screen" },
   { value: "mock", label: "Practice" },
@@ -32,9 +33,11 @@ const ENDINGS: { value: CheckinOutcome; label: string }[] = [
 
 export function CheckinSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [kind, setKind] = useState<CheckinKind>("drink");
-  const [transport, setTransport] = useState<Transport>(IS_MOCK ? "mock" : "facetime");
+  const [transport, setTransport] = useState<RequestedTransport>(IS_MOCK ? "mock" : "facetime");
+  const [route, setRoute] = useState<Route | null>(null);
   const [ending, setEnding] = useState<CheckinOutcome>("confirmed");
   const [demo, setDemo] = useState(false);
+  const [autoEnabled, setAutoEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mum = useHearth((s) => s.today?.resident.family_name_for_her ?? "Mum");
@@ -45,12 +48,30 @@ export function CheckinSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads ?demo=1 on the client
     setDemo(demoEnabled());
+    // Auto is explicitly opt-in, including in mock mode.
+    setAutoEnabled(new URLSearchParams(window.location.search).get("demo") === "1");
   }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale errors when reopened
     if (open) setError(null);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !demo || transport !== "auto") return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const decision = await api.route();
+        if (!cancelled) setRoute(decision);
+      } catch {
+        if (!cancelled) setRoute(null);
+      }
+    };
+    void refresh();
+    const timer = setInterval(refresh, 10000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [open, demo, transport]);
 
   const start = async () => {
     setBusy(true);
@@ -115,7 +136,16 @@ export function CheckinSheet({ open, onOpenChange }: { open: boolean; onOpenChan
       {demo ? (
         <div className="mt-6 rounded-2xl border border-dashed border-line-strong/60 p-4">
           <p className="text-sm font-semibold text-muted">Demo options</p>
-          <Segmented legend="Call through" name="transport" options={TRANSPORTS} value={transport} onChange={setTransport} />
+          <Segmented legend="Call through" name="transport" options={autoEnabled ? TRANSPORTS : TRANSPORTS.filter((o) => o.value !== "auto")} value={transport} onChange={setTransport} />
+          {transport === "auto" && route ? (
+            <p className="mt-2 text-sm text-muted" role="status">
+              {route.kitchen_online
+                ? "Kitchen screen is up: Memo will use it."
+                : route.transport === "facetime"
+                  ? "Kitchen screen is not open: Memo will ring FaceTime."
+                  : "Kitchen screen is not open: Memo will wait for it."}
+            </p>
+          ) : null}
           {transport === "mock" ? <Segmented legend="How it ends" name="ending" options={ENDINGS} value={ending} onChange={setEnding} /> : null}
         </div>
       ) : null}

@@ -513,6 +513,10 @@ export const mockApi: HearthApi = {
     requireSession();
     return delay(buildToday());
   },
+  async route() {
+    requireSession();
+    return delay({ transport: "kiosk", reason: "kitchen screen is up", kitchen_online: true, platform: "ios" });
+  },
   async watch() {
     requireSession();
     if (!watchEnabled()) return delay({ enabled: false, active: false, until: null, notes: [] });
@@ -572,7 +576,7 @@ export const mockApi: HearthApi = {
       id: id("ci"),
       resident_id: "res_margaret",
       kind,
-      transport: body.transport ?? "mock",
+      transport: body.transport === "auto" ? "mock" : body.transport ?? "mock",
       status: "queued",
       outcome: null,
       attempt: 1,

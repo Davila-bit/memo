@@ -39,7 +39,8 @@ scripts/                       ws (run in workspace), probes, dev-up
 | Name | Used by | Missing means |
 |---|---|---|
 | `HEARTH_WATCH` (default `0`) | core, kiosk | only exact `1` enables watch mode; off hides all watch UI and camera capture |
-| `HEARTH_TRANSPORT` = `facetime` \| `kiosk` \| `mock` (default `mock`) | calls | – |
+| `HEARTH_TRANSPORT` = `auto` \| `facetime` \| `kiosk` \| `mock` (default `mock`) | calls | – |
+| `HEARTH_AUTO_FACETIME` (default `0`) | core | only exact `1` lets `auto` choose FaceTime; explicit FaceTime requests are unchanged |
 | `HEARTH_PASSCODE` (default `hearth-demo`), `HEARTH_SESSION_SECRET` | core | dev defaults + a log warning |
 | `HEARTH_INTERNAL_TOKEN` | core, agent | dev default `dev-internal` + a log warning |
 | `HEARTH_CHERT_HOOK_KEY` | core | unset: all Chert webhook requests return 404; generated once by `scripts/dev-up` |
@@ -76,6 +77,7 @@ defaults to `gemini-3.5-flash-lite` (0.5 s).
 | `POST /api/auth/login` | `LoginRequest` → `Me` (+ `hearth_session` cookie, HttpOnly, SameSite=Lax) | passcode sign-in; 401 on a wrong code |
 | `POST /api/auth/logout` | → 204 | |
 | `GET /api/me` | → `Me` | 401 when signed out |
+| `GET /api/route` | → `Route` | current automatic route decision; does not start a call |
 | `GET /api/watch` | → `Watch` | in-memory state; off returns `enabled=false, active=false` |
 | `POST /api/watch` | `WatchRequest` → `Watch` | start/restart; 404 when disabled |
 | `DELETE /api/watch` | → `Watch` | stop; 404 when disabled |
@@ -124,6 +126,26 @@ contains that transcription. Audio stays in memory and is never stored or logged
 it is sent in a POST body to Typesense, never a URL. Voice validation, missing search
 configuration, or unavailable transcription return HTTP 400 with a plain sentence.
 
+
+### Automatic call routing
+
+`RequestedTransport = "auto" | "facetime" | "kiosk" | "mock"` applies only to
+`StartCheckinRequest.transport` (null uses `HEARTH_TRANSPORT`) and `Health.transport_default`.
+`Checkin.transport` and `AgentJob.transport` always contain the resolved `Transport`
+(`"facetime" | "kiosk" | "mock"`), never `auto`. Existing defaults and explicit routes are unchanged.
+
+`Route = {transport: "kiosk" | "facetime", reason: string, kitchen_online: bool,
+platform: "ios" | "android" | "other" | null}`. A visible kitchen heartbeat less than
+25 seconds old uses kiosk. Otherwise, FaceTime requires `HEARTH_AUTO_FACETIME=1`, a healthy
+configured Chert/LiveKit call service, and last platform `ios` or no heartbeat ever seen.
+All other decisions use kiosk; normal unavailable-service fallback still applies at start.
+
+`POST /internal/kiosk/heartbeat?key=` takes `{device: string, platform: "ios" | "android" |
+"other", visible: bool}` and returns 204. Authentication matches the watch query key
+(`HEARTH_INTERNAL_TOKEN`; missing/wrong key returns 401), independent of the watch flag.
+Only the configured `HEARTH_KIOSK_DEVICE` updates presence. State is in memory, uses the app
+clock, and resets on restart. The kiosk posts on load, every 10 seconds, and on visibility
+changes. Query keys are removed from `/internal/kiosk/` and `/internal/watch/` access logs.
 
 ### Optional watch mode
 

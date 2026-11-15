@@ -33,6 +33,7 @@ from hearth_contracts import (
     Privacy,
     PushSubscription,
     Resident,
+    Route,
     ScheduleItem,
     StartCheckinRequest,
     StoredThing,
@@ -54,6 +55,7 @@ from starlette.websockets import WebSocketDisconnect
 from .auth import COOKIE, MAX_AGE, Auth, client_ip, is_https, require_internal, require_session, ws_allowed
 from .checkins import CheckinService, Conflict, NotFound
 from .clock import local_day_bounds
+from .route import KioskHeartbeat
 from .seed import seed
 
 log = logging.getLogger("hearth.core")
@@ -561,11 +563,28 @@ def require_watch_enabled(request: Request) -> None:
 # Watch uses precisely the kiosk token query authentication, not the agent header.
 def require_watch_key(request: Request, key: str = Query("")) -> None:
     require_watch_enabled(request)
+    require_kiosk_key(request, key)
+
+
+def require_kiosk_key(request: Request, key: str = Query("")) -> None:
     if not request.app.state.auth.check_internal(key):
         raise HTTPException(401, "That kiosk key isn't right.")
 
 
 watch_internal = APIRouter(prefix="/internal/watch", dependencies=[Depends(require_watch_key)])
+kiosk_internal = APIRouter(prefix="/internal/kiosk", dependencies=[Depends(require_kiosk_key)])
+
+
+@kiosk_internal.post("/heartbeat", status_code=204)
+async def kiosk_heartbeat(body: KioskHeartbeat, request: Request) -> Response:
+    svc(request).route.heartbeat(body)
+    return Response(status_code=204)
+
+
+@api.get("/route", response_model=Route)
+async def route_decision(request: Request, response: Response) -> Route:
+    response.headers["Cache-Control"] = "no-store"
+    return svc(request).route.decide()
 
 
 @api.get("/watch", response_model=Watch)

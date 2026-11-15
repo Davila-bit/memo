@@ -31,6 +31,7 @@ class Settings:
     cors_origins: list[str] = field(default_factory=list)
     retry_seconds: float = 120.0
     watch: bool = False
+    auto_facetime: bool = False
     scheduler: bool = True
     tick_seconds: float = 5.0
     mock_scale: float = 1.0  # mock call timeline speed (tests use ~0.02)
@@ -45,7 +46,8 @@ class Settings:
         env = os.environ
         s = cls()
         t = env.get("HEARTH_TRANSPORT", "mock").strip() or "mock"
-        s.transport_default = t if t in {"facetime", "kiosk", "mock"} else "mock"
+        s.transport_default = t if t in {"auto", "facetime", "kiosk", "mock"} else "mock"
+        s.auto_facetime = env.get("HEARTH_AUTO_FACETIME") == "1"
 
         if env.get("HEARTH_PASSCODE"):
             s.passcode = env["HEARTH_PASSCODE"]
