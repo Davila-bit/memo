@@ -27,6 +27,7 @@ import type {
 import { ApiError, notifyUnauthorized } from "./api-error";
 import { IS_MOCK } from "./env";
 import { mockApi } from "./mock";
+import { withBase } from "./base";
 
 export { ApiError, onUnauthorized } from "./api-error";
 
@@ -83,7 +84,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: { 
   }
   let res: Response;
   try {
-    res = await fetch(path, init);
+    res = await fetch(withBase(path), init);
   } catch {
     throw new ApiError(0, "Couldn't reach Memo.");
   }

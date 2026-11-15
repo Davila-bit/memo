@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
+import { IS_STATIC, withBase } from "@/lib/base";
 
 /** Registers /sw.js (push + notification clicks only; no offline caching of data). */
 export function ServiceWorker() {
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+    if (IS_STATIC || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register(withBase("/sw.js"), { scope: withBase("/") }).catch(() => {
       /* not fatal: the app works without it */
     });
   }, []);
