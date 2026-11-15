@@ -150,6 +150,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             h["search"] = _status_of(integ["search"], (KeywordSearch,))
             h["digest"] = _status_of(integ["digest"], (TemplateDigest,))
             h["redactor"] = _status_of(integ["redactor"], (RegexRedactor,))
+            # hearth.integrations reports per-service detail (which key is missing); fold it in.
+            try:
+                import hearth.integrations as _integ
+
+                detail_fn = getattr(_integ, "health", None)
+                detail = dict(detail_fn() or {}) if callable(detail_fn) else {}
+            except Exception:  # noqa: BLE001
+                detail = {}
+            detail = {k: (v if v in STATUSES else "error") for k, v in detail.items()}
+            h.update(detail)
+            if detail:
+                if h["notifier"] == "ok":
+                    push, ntfy = detail.get("web_push"), detail.get("ntfy")
+                    h["notifier"] = "ok" if "ok" in (push, ntfy) else (push or ntfy or "ok")
+                if h["search"] == "ok" and "typesense" in detail:
+                    h["search"] = detail["typesense"]
+                if h["digest"] == "ok" and "gemini_text" in detail:
+                    h["digest"] = detail["gemini_text"]
             return h
 
         app.state.health = health

@@ -16,7 +16,7 @@ def test_health_and_auth_required(make_client):
     body = h.json()
     assert body["transport_default"] == "mock"
     assert body["integrations"]["tiger"] == "missing_key"
-    assert body["integrations"]["notifier"] == "mock"
+    assert body["integrations"]["notifier"] in ("mock", "missing_key")  # built-in, or real without keys
     for path in ["/api/today", "/api/me", "/api/week", "/api/privacy", "/api/demo/clock", "/api/ws-ticket"]:
         assert c.get(path).status_code == 401, path
     assert c.post("/api/checkins", json={}).status_code == 401
@@ -363,6 +363,8 @@ def test_plugins_are_picked_up(make_client, monkeypatch):
         return FakeNotifier()
 
     monkeypatch.setattr(hearth.calls, "build_call_service", lambda: FakeCalls(), raising=False)
+    for name in ("build_search", "build_digest_writer", "build_redactor", "health"):
+        monkeypatch.delattr(hearth.integrations, name, raising=False)
     monkeypatch.setattr(hearth.calls, "router", calls_router, raising=False)
     monkeypatch.setattr(hearth.integrations, "build_notifier", build_notifier, raising=False)
     c = make_client(transport_default="facetime")
