@@ -51,6 +51,7 @@ export function FluidChart({ days, target }: { days: DayStats[]; target: number 
               <div aria-hidden className="relative flex-1 border-b border-line-strong/60">
                 <div className="absolute inset-x-[-0.25rem] border-t-2 border-dashed border-ink/40 sm:inset-x-[-0.5rem]" style={{ bottom: `${goalPct}%` }} />
                 <div
+                  data-bar
                   className={cn(
                     "absolute inset-x-1 bottom-0 rounded-t-lg transition-[height] duration-500 sm:inset-x-2",
                     isToday ? "bg-sage" : "bg-sky",
