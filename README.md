@@ -186,7 +186,8 @@ We're a team of two, and we used AI coding agents heavily, each of us in our own
 
 ## Docs
 
-- [`docs/07-HEARTH-HOME.md`](docs/07-HEARTH-HOME.md): current spec (users, loop, features, architecture, accessibility, privacy, demo)
-- [`docs/08-STACK-AND-ADDITIONS.md`](docs/08-STACK-AND-ADDITIONS.md): final stack, safety layer, kiosk fallback, team attribution
+- [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md): the accessibility report (what was scanned, what was checked by hand, what was not)
+- [`docs/TYPESENSE-CAPACITY.md`](docs/TYPESENSE-CAPACITY.md): what we measured on the free Typesense cluster
+- [`docs/DEVPOST.md`](docs/DEVPOST.md): the project write-up
 - [`contracts/API.md`](contracts/API.md): API, live channel, agent tools, repo layout
 - [`docs/tasks/`](docs/tasks/): the task cards the team worked from
