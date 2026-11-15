@@ -42,7 +42,10 @@ if [ ! -f "$RT" ]; then
     printf 'HEARTH_INTERNAL_TOKEN=%s\n' "$(openssl rand -hex 24)" >> "$RT" )
   echo "dev-up: generated runtime secrets in $RT (the sign-in passcode is in there)"
 fi
+# a private ntfy topic for the daughter's phone alerts (subscribe to it in the ntfy app)
+grep -q '^NTFY_TOPIC=' "$RT" || printf 'NTFY_TOPIC=hearth-%s\n' "$(openssl rand -hex 8)" >> "$RT"
 set -a; . "$RT"; set +a
+export NTFY_ALL=${NTFY_ALL:-1}
 
 # ---- public tunnels (optional)
 TUN_IMG=cloudflare/cloudflared:2026.3.0
@@ -77,7 +80,7 @@ export HEARTH_API_ORIGIN=http://127.0.0.1:8000
 [ -n "$API_URL" ] && export NEXT_PUBLIC_HEARTH_WS_URL="wss://${API_URL#https://}/ws"
 
 SECRETS=(TIGER_DATABASE_URL LIVEKIT_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET CHERT_API_KEY CHERT_PROJECT_ID
-  CHERT_LINE_ID CHERT_IPAD_NUMBER GEMINI_API_KEY TYPESENSE_HOST TYPESENSE_API_KEY NTFY_TOPIC
+  CHERT_LINE_ID CHERT_IPAD_NUMBER GEMINI_API_KEY TYPESENSE_HOST TYPESENSE_API_KEY
   VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY VAPID_SUBJECT)
 listing=$(fnox list 2>/dev/null || true)
 found=()
@@ -85,7 +88,8 @@ for n in "${SECRETS[@]}"; do grep -qE "^[[:space:]]*$n[[:space:]]" <<<"$listing"
 PLAIN=(HEARTH_PASSCODE HEARTH_SESSION_SECRET HEARTH_INTERNAL_TOKEN HEARTH_TRANSPORT HEARTH_SCHEDULER
   HEARTH_API_BASE HEARTH_API_ORIGIN HEARTH_PUBLIC_URL HEARTH_CORS_ORIGINS NEXT_PUBLIC_HEARTH_WS_URL
   HEARTH_RETRY_SECONDS HEARTH_MOCK_SCALE HEARTH_KIOSK_DEVICE HEARTH_RING_SECONDS HEARTH_REDACT_NAMES
-  GEMINI_LIVE_MODEL GEMINI_TEXT_MODEL NTFY_URL HEARTH_TIMEZONE)
+  GEMINI_LIVE_MODEL GEMINI_TEXT_MODEL NTFY_URL NTFY_TOPIC NTFY_ALL HEARTH_TIMEZONE
+  HEARTH_NO_ANSWER_ASK_S HEARTH_NO_ANSWER_END_S)
 envargs=()
 for n in "${found[@]}" "${PLAIN[@]}"; do [ -n "${!n:-}" ] || [[ " ${found[*]} " == *" $n "* ]] && envargs+=(-e "$n"); done
 
