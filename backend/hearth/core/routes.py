@@ -44,6 +44,8 @@ from hearth_contracts import (
     ToolFlagConcern,
     ToolReportRefusal,
     ToolResult,
+    Watch,
+    WatchRequest,
     Week,
     WsCheckin,
 )
@@ -110,7 +112,8 @@ async def login(body: LoginRequest, request: Request, response: Response) -> Me:
     response.set_cookie(COOKIE, auth.sign(), max_age=MAX_AGE, httponly=True, samesite="lax",
                         secure=is_https(request), path="/")
     r = await svc(request).resident()
-    return Me(name=r.daughter_name, resident=r, voice=await voice_available(request))
+    return Me(name=r.daughter_name, resident=r, voice=await voice_available(request),
+              watch=request.app.state.settings.watch)
 
 
 @public.post("/auth/logout", status_code=204)
@@ -145,7 +148,8 @@ api = APIRouter(prefix="/api", dependencies=[Depends(require_session)])
 @api.get("/me", response_model=Me)
 async def me(request: Request) -> Me:
     r = await svc(request).resident()
-    return Me(name=r.daughter_name, resident=r, voice=await voice_available(request))
+    return Me(name=r.daughter_name, resident=r, voice=await voice_available(request),
+              watch=request.app.state.settings.watch)
 
 
 @api.get("/today", response_model=Today)
@@ -371,7 +375,9 @@ async def privacy(request: Request) -> Privacy:
         never_stored=["Video or audio of any call", "Images from her camera", "Transcripts of what was said",
                       "Voiceprints"],
         retention_days_events=RETENTION_DAYS,
-        in_transit=["Chert (FaceTime bridge)", "LiveKit Cloud", "Google Gemini"],
+        in_transit=["Chert (FaceTime bridge)", "LiveKit Cloud", "Google Gemini"] + ([
+            ("While watch mode is on, one still image about every 10 seconds goes to Google's Gemini "
+            "to check she is OK. Images are never stored.")] if s.settings.watch else []),
         consent=r.consent,
         counts={"events": await s.store.count_events(), "checkins": len(await s.store.list_checkins(10000)),
                 "alerts": len(await s.store.list_alerts()), "cue_photos": cue_photos,
@@ -544,3 +550,60 @@ async def ws_endpoint(ws: WebSocket) -> None:
             sender.cancel()
     finally:
         s.bus.unsubscribe(q)
+
+
+def require_watch_enabled(request: Request) -> None:
+    if not request.app.state.settings.watch:
+        raise HTTPException(404, "Watch mode is not enabled.")
+
+
+# Watch uses precisely the kiosk token query authentication, not the agent header.
+def require_watch_key(request: Request, key: str = Query("")) -> None:
+    require_watch_enabled(request)
+    if not request.app.state.auth.check_internal(key):
+        raise HTTPException(401, "That kiosk key isn't right.")
+
+
+watch_internal = APIRouter(prefix="/internal/watch", dependencies=[Depends(require_watch_key)])
+
+
+@api.get("/watch", response_model=Watch)
+async def watch_state(request: Request) -> Watch:
+    return request.app.state.watch.view()
+
+
+@api.post("/watch", response_model=Watch, dependencies=[Depends(require_watch_enabled)])
+async def start_watch(body: WatchRequest, request: Request) -> Watch:
+    return request.app.state.watch.start(body.minutes)
+
+
+@api.delete("/watch", response_model=Watch, dependencies=[Depends(require_watch_enabled)])
+async def stop_watch(request: Request) -> Watch:
+    return request.app.state.watch.stop()
+
+
+@watch_internal.get("/state")
+async def kiosk_watch_state(request: Request) -> dict[str, bool]:
+    watch = request.app.state.watch
+    return {"active": watch.view().active and await svc(request).store.active_checkin() is None}
+
+
+@watch_internal.post("/frame", response_model=Watch)
+async def watch_frame(request: Request, response: Response) -> Watch:
+    response.headers["Cache-Control"] = "no-store"
+    watch = request.app.state.watch
+    await watch.require_active()
+    if request.headers.get("content-type", "").split(";")[0] != "image/jpeg":
+        raise HTTPException(415, "Send one JPEG image.")
+    # Stream with a hard cap, including requests without Content-Length.
+    jpeg = bytearray()
+    async for chunk in request.stream():
+        if len(jpeg) + len(chunk) > 300 * 1024:
+            raise HTTPException(413, "Choose an image under 300 KB.")
+        jpeg.extend(chunk)
+    if not jpeg.startswith(b"\xff\xd8\xff") or not jpeg.endswith(b"\xff\xd9"):
+        raise HTTPException(400, "Send one JPEG image.")
+    try:
+        return await watch.frame(bytes(jpeg))
+    finally:
+        jpeg.clear()

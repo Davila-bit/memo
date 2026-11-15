@@ -18,6 +18,7 @@ import type {
   Resident,
   ScheduleItem,
   Today,
+  Watch,
   WsMessage,
 } from "./contracts";
 import { AMOUNT_ML } from "./contracts";
@@ -35,6 +36,12 @@ const tz = (() => {
     return "America/New_York";
   }
 })();
+
+// Explicit browser-test opt-in, read only by mock mode. Ordinary practice stays off.
+function watchEnabled(): boolean {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("mockWatch") === "1";
+}
+let mockWatch: Watch = { enabled: false, active: false, until: null, notes: [] };
 
 let seq = 0;
 const id = (p: string) => `${p}_${Date.now().toString(36)}${(seq++).toString(36)}`;
@@ -490,7 +497,7 @@ export const mockApi: HearthApi = {
     } catch {
       /* private mode */
     }
-    return delay<Me>({ voice: true, name: S().resident.daughter_name, resident: S().resident });
+    return delay<Me>({ voice: true, watch: watchEnabled(), name: S().resident.daughter_name, resident: S().resident });
   },
   async logout() {
     try {
@@ -501,11 +508,32 @@ export const mockApi: HearthApi = {
   },
   async me() {
     requireSession();
-    return delay<Me>({ voice: true, name: S().resident.daughter_name, resident: S().resident });
+    return delay<Me>({ voice: true, watch: watchEnabled(), name: S().resident.daughter_name, resident: S().resident });
   },
   async today() {
     requireSession();
     return delay(buildToday());
+  },
+  async watch() {
+    requireSession();
+    if (!watchEnabled()) return delay({ enabled: false, active: false, until: null, notes: [] });
+    if (mockWatch.until && new Date(mockWatch.until) <= now()) mockWatch = { ...mockWatch, active: false, until: null };
+    return delay({ ...mockWatch, enabled: true });
+  },
+  async startWatch({ minutes }) {
+    requireSession();
+    if (!watchEnabled()) throw new ApiError(404, "Watch mode is not enabled.");
+    mockWatch = {
+      enabled: true, active: true, until: new Date(now().getTime() + minutes * 60_000).toISOString(),
+      notes: [{ ts: now().toISOString(), status: "ok", note: "Sitting at the table" }],
+    };
+    return delay(mockWatch);
+  },
+  async stopWatch() {
+    requireSession();
+    if (!watchEnabled()) throw new ApiError(404, "Watch mode is not enabled.");
+    mockWatch = { ...mockWatch, active: false, until: null };
+    return delay(mockWatch);
   },
   async week() {
     requireSession();

@@ -20,23 +20,26 @@ from .auth import Auth
 from .checkins import CheckinService
 from .clock import Bus, DemoClock
 from .fallbacks import KeywordSearch, LogNotifier, MockCallService, RegexRedactor, TemplateDigest
-from .routes import api, hooks, internal, live, public
+from .routes import api, hooks, internal, live, public, watch_internal
 from .seed import seed
 from .settings import Settings
 from .store import MemoryStore, Store
+from .watch import WatchService
 
 log = logging.getLogger("hearth.core")
 STATUSES = {"ok", "missing_key", "error", "mock"}
 
 
 class _WebhookAccessFilter(logging.Filter):
-    """The webhook path contains a credential; Uvicorn normally prints the entire URL."""
+    """Credential-bearing paths must not expose keys in Uvicorn access logs."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.args, tuple) and len(record.args) == 5:
             client, method, path, version, status = record.args
             if isinstance(path, str) and path.startswith("/hooks/chert/"):
                 record.args = (client, method, "/hooks/chert/<redacted>", version, status)
+            elif isinstance(path, str) and path.startswith("/internal/watch/"):
+                record.args = (client, method, path.split("?", 1)[0], version, status)
         return True
 
 
@@ -146,6 +149,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                              search=integ["search"], digest=integ["digest"], redactor=integ["redactor"],
                              real_calls=real_calls, mock_calls=mock_calls)
         app.state.svc = svc
+        app.state.watch = WatchService(svc)
         svc._bg(svc.reindex())
         app.state.fallback_search = KeywordSearch()
         app.state.fallback_digest = TemplateDigest()
@@ -217,6 +221,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(hooks)
     app.include_router(api)
     app.include_router(internal)
+    app.include_router(watch_internal)
     app.include_router(live)
     if calls_router is not None:
         app.include_router(calls_router)

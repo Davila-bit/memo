@@ -30,6 +30,7 @@ class Settings:
     database_url: str | None = None
     cors_origins: list[str] = field(default_factory=list)
     retry_seconds: float = 120.0
+    watch: bool = False
     scheduler: bool = True
     tick_seconds: float = 5.0
     mock_scale: float = 1.0  # mock call timeline speed (tests use ~0.02)
@@ -67,6 +68,7 @@ class Settings:
             s.retry_seconds = float(env.get("HEARTH_RETRY_SECONDS", "120"))
         except ValueError:
             s.retry_seconds = 120.0
+        s.watch = env.get("HEARTH_WATCH") == "1"
         s.scheduler = _flag("HEARTH_SCHEDULER", True)
         try:
             s.mock_scale = float(env.get("HEARTH_MOCK_SCALE", "1"))

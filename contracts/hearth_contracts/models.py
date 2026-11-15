@@ -185,8 +185,26 @@ class LoginRequest(Model):
 
 class Me(Model):
     voice: bool = False  # search can accept voice questions now
+    watch: bool = False  # HEARTH_WATCH=1 only
     name: str  # "Sarah"
     resident: Resident
+
+
+class WatchNote(Model):
+    ts: datetime
+    status: Literal["ok", "unusual", "concern"]
+    note: str = Field(max_length=200)
+
+
+class Watch(Model):
+    enabled: bool
+    active: bool
+    until: datetime | None = None
+    notes: list[WatchNote] = Field(default_factory=list)
+
+
+class WatchRequest(Model):
+    minutes: Literal[30, 120]
 
 
 class StartCheckinRequest(Model):

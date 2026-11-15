@@ -15,9 +15,11 @@ import { CheckinSheet } from "./checkin-sheet";
 import { LiveCheckin } from "./live-checkin";
 import { TodaySummary } from "./summary";
 import { Timeline } from "./timeline";
+import { WatchCard } from "./watch-card";
 
 export function TodayView() {
   const today = useHearth((s) => s.today);
+  const watchEnabled = useHearth((s) => s.me?.watch === true);
   const schedule = useHearth((s) => s.schedule);
   const handled = useHearth((s) => s.handledAlerts);
   const loadError = useHearth((s) => s.loadError);
@@ -96,6 +98,8 @@ export function TodayView() {
           </div>
         }
       />
+
+      {watchEnabled ? <WatchCard resident={today.resident} /> : null}
 
       <section aria-labelledby="timeline-heading">
         <div className="mb-4 flex items-end justify-between gap-3">

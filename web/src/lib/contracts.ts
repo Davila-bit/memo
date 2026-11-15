@@ -128,8 +128,26 @@ export interface LoginRequest {
 
 export interface Me {
   voice: boolean;
+  watch: boolean;
   name: string;
   resident: Resident;
+}
+
+export interface WatchNote {
+  ts: string;
+  status: "ok" | "unusual" | "concern";
+  note: string;
+}
+
+export interface Watch {
+  enabled: boolean;
+  active: boolean;
+  until: string | null;
+  notes: WatchNote[];
+}
+
+export interface WatchRequest {
+  minutes: 30 | 120;
 }
 
 export interface StartCheckinRequest {
