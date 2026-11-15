@@ -79,7 +79,7 @@ export function weekSub(days: DayStats[], target: number): string {
   if (past.length > 0) {
     const met = past.filter((d) => d.fluid_ml >= target).length;
     if (past.length === 1) parts.push(met === 1 ? "She reached it that day." : "She didn't reach it that day.");
-    else if (met === 0) parts.push("She didn't reach it on those days.");
+    else if (met === 0) parts.push("She hasn't reached it on any of those days.");
     else parts.push(`She reached it on ${met} of those ${past.length} days.`);
   }
   if (today && hasActivity(today) && past.length > 0) parts.push(`Today so far: ${formatMl(today.fluid_ml)} ml.`);
