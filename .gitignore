@@ -18,3 +18,4 @@ fnox.toml
 # plaintext credential downloads: never commit
 *credentials*.txt
 *api-keys*.txt
+.cache/
