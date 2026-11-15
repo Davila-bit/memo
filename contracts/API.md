@@ -51,6 +51,7 @@ scripts/                       ws (run in workspace), probes, dev-up
 | `NTFY_TOPIC`, `NTFY_URL` (default `https://ntfy.sh`) | integrations | no urgent push; in-app alert still shows |
 | `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` | integrations | no Web Push; in-app alert still shows |
 | `HEARTH_KIOSK_DEVICE` (default `kitchen`) | calls | – |
+| `HEARTH_AGENT_NAME` (default `hearth-agent`), `HEARTH_RING_SECONDS` (default 45), `HEARTH_CHERT_SKIP_LINE_CHECK` | calls, agent | – |
 
 `gemini-3.8-flash` stalled with zero bytes on our free-tier key (checked Sat 23:24), so text work
 defaults to `gemini-3.5-flash-lite` (0.5 s).
@@ -132,6 +133,12 @@ POST /api/checkins ─► queued ─► CallService.start(checkin, job, callback
   `no_answer` (tier `check`): "Mum didn't answer her 2:00 check-in. Please check on her."
 - **90 s budget:** enforced twice, in the agent and in `CallService`. Budget hit with no outcome →
   outcome `error`, event `missed`.
+- **`call_finished` semantics:** before live it carries `"no_answer"` or `"error"` + reason. After live
+  it always carries `outcome=None`, plus an error string when the end was not clean ("time budget
+  reached", a Chert failure). The core then keeps the outcome the agent reported; if none was
+  reported it sets `error` itself.
+- `CallService.kiosk_token` may raise `hearth.calls.CallsUnavailable` (plain sentence): map to 503.
+  If the service has `aclose()`, the core calls it on shutdown.
 - One check-in at a time (the Chert line allows one call).
 - The agent never dials 911 and never gives medical advice. `called_911` is only ever set by the
   daughter tapping a `tel:` link in her app.

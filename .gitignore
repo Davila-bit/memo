@@ -23,3 +23,4 @@ fnox.toml
 # agent worktrees and local tooling
 .claude/
 .env.coder*
+.pnpm-store/
