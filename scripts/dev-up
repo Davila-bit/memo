@@ -44,8 +44,26 @@ if [ ! -f "$RT" ]; then
 fi
 # a private ntfy topic for the daughter's phone alerts (subscribe to it in the ntfy app)
 grep -q '^NTFY_TOPIC=' "$RT" || printf 'NTFY_TOPIC=hearth-%s\n' "$(openssl rand -hex 8)" >> "$RT"
+# VAPID keypair for browser push (the main alert channel). Generated in the workspace, stored only in $RT.
+if ! grep -q '^VAPID_PRIVATE_KEY=' "$RT"; then
+  gen=$(docker exec -u coder -w "$ROOT/backend" "$WS" .venv/bin/python -c "
+from cryptography.hazmat.primitives import serialization
+from py_vapid import Vapid
+from py_vapid.utils import b64urlencode
+v = Vapid(); v.generate_keys()
+print(b64urlencode(v.private_key.private_numbers().private_value.to_bytes(32, 'big')))
+print(b64urlencode(v.public_key.public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)))
+" 2>/dev/null || true)
+  priv=$(sed -n 1p <<<"$gen"); pub=$(sed -n 2p <<<"$gen"); unset gen
+  if [ "${#priv}" -eq 43 ] && [ "${#pub}" -eq 87 ]; then
+    ( umask 077; printf 'VAPID_PRIVATE_KEY=%s\nVAPID_PUBLIC_KEY=%s\n' "$priv" "$pub" >> "$RT" )
+    echo "dev-up: generated a VAPID keypair for browser push"
+  else
+    echo "dev-up: could not generate VAPID keys (browser push stays off; ntfy still works)" >&2
+  fi
+  unset priv pub
+fi
 set -a; . "$RT"; set +a
-export NTFY_ALL=${NTFY_ALL:-1}
 
 # ---- public tunnels (optional)
 TUN_IMG=cloudflare/cloudflared:2026.3.0
@@ -76,12 +94,11 @@ export HEARTH_TRANSPORT=${HEARTH_TRANSPORT:-mock}
 export HEARTH_SCHEDULER=${HEARTH_SCHEDULER:-0}
 export HEARTH_API_BASE=http://127.0.0.1:8000
 export HEARTH_API_ORIGIN=http://127.0.0.1:8000
-[ -n "$WEB_URL" ] && export HEARTH_PUBLIC_URL=$WEB_URL HEARTH_CORS_ORIGINS=$WEB_URL
+[ -n "$WEB_URL" ] && export HEARTH_PUBLIC_URL=$WEB_URL HEARTH_CORS_ORIGINS=$WEB_URL VAPID_SUBJECT=$WEB_URL
 [ -n "$API_URL" ] && export NEXT_PUBLIC_HEARTH_WS_URL="wss://${API_URL#https://}/ws"
 
 SECRETS=(TIGER_DATABASE_URL LIVEKIT_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET CHERT_API_KEY CHERT_PROJECT_ID
-  CHERT_LINE_ID CHERT_IPAD_NUMBER GEMINI_API_KEY TYPESENSE_HOST TYPESENSE_API_KEY
-  VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY VAPID_SUBJECT)
+  CHERT_LINE_ID CHERT_IPAD_NUMBER GEMINI_API_KEY TYPESENSE_HOST TYPESENSE_API_KEY)
 listing=$(fnox list 2>/dev/null || true)
 found=()
 for n in "${SECRETS[@]}"; do grep -qE "^[[:space:]]*$n[[:space:]]" <<<"$listing" && found+=("$n"); done
@@ -89,6 +106,7 @@ PLAIN=(HEARTH_PASSCODE HEARTH_SESSION_SECRET HEARTH_INTERNAL_TOKEN HEARTH_TRANSP
   HEARTH_API_BASE HEARTH_API_ORIGIN HEARTH_PUBLIC_URL HEARTH_CORS_ORIGINS NEXT_PUBLIC_HEARTH_WS_URL
   HEARTH_RETRY_SECONDS HEARTH_MOCK_SCALE HEARTH_KIOSK_DEVICE HEARTH_RING_SECONDS HEARTH_REDACT_NAMES
   GEMINI_LIVE_MODEL GEMINI_TEXT_MODEL NTFY_URL NTFY_TOPIC NTFY_ALL HEARTH_TIMEZONE
+  VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY VAPID_SUBJECT
   HEARTH_NO_ANSWER_ASK_S HEARTH_NO_ANSWER_END_S)
 envargs=()
 for n in "${found[@]}" "${PLAIN[@]}"; do [ -n "${!n:-}" ] || [[ " ${found[*]} " == *" $n "* ]] && envargs+=(-e "$n"); done

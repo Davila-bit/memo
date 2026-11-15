@@ -229,12 +229,16 @@ async def test_notifier_sends_and_drops_gone_subscriptions(monkeypatch: pytest.M
     assert len(sent) == 1 and sent[0][1]["urgent"] is True
     assert "she said 'I fell down'" in sent[0][1]["body"]
     assert [a["action"] for a in sent[0][1]["actions"]] == ["handling", "called_911"]
-    assert posted and posted[0]["priority"] == 5 and posted[0]["topic"] == "hearth-test-topic"
+    assert posted == []  # a browser got the push, so the ntfy fallback stays quiet
     assert n.pop_dead_endpoints() == ["https://push.example/gone"] and n.pop_dead_endpoints() == []
 
+    # No browser reachable (only the gone one is left): ntfy is the fallback, urgent or not.
+    subs[:] = [subs[1]]
+    await n.alert(_alert())
+    assert posted and posted[-1]["priority"] == 5 and posted[-1]["topic"] == "hearth-test-topic"
     posted.clear()
     await n.alert(_alert("refused", "check"))
-    assert posted == []  # non-urgent: no ntfy unless NTFY_ALL=1
+    assert len(posted) == 1 and posted[0]["priority"] == 3
 
 
 async def test_notifier_swallows_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:

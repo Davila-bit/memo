@@ -1,4 +1,4 @@
-"""Notifier: Web Push to the daughter's PWA, plus ntfy for urgent alerts.
+"""Notifier: Web Push to the daughter's PWA, with ntfy as the fallback.
 
 Web Push payload (JSON string the service worker receives in `event.data.json()`):
     {"title": str, "body": str, "url": str, "urgent": bool,
@@ -6,7 +6,7 @@ Web Push payload (JSON string the service worker receives in `event.data.json()`
 `url` is a same-origin path to open on click. `actions[].action` values are `AlertAction` ids
 ("handling", "called_911", "retry_later", "i_will_call", "ask_neighbour") or "open".
 
-ntfy (urgent always; everything when NTFY_ALL=1) uses JSON publishing to `NTFY_URL`, so non-ASCII titles
+ntfy is the fallback (used when no browser got the push; always when NTFY_ALL=1) and uses JSON publishing to `NTFY_URL`, so non-ASCII titles
 need no header encoding. The topic is a capability: it is never logged.
 """
 
@@ -120,13 +120,20 @@ class HearthNotifier:
 
     async def notify(self, title: str, body: str, *, urgent: bool = False, url: str | None = None,
                      actions: list[tuple[str, str]] | None = None, tag: str | None = None) -> None:
-        jobs = [self._push_all(push_payload(title, body, urgent=urgent, url=url, actions=actions, tag=tag))]
-        if self.ntfy_topic and (urgent or self.ntfy_all):
-            jobs.append(self._ntfy(title, body, urgent=urgent, url=url, actions=actions))
+        # Browser push is the main channel. ntfy is the fallback: it is used only when no browser
+        # received the push (nobody subscribed, keys missing, or every delivery failed), or always
+        # when NTFY_ALL=1.
+        delivered = 0
         try:
-            await asyncio.gather(*jobs, return_exceptions=True)
+            delivered = await self._push_all(
+                push_payload(title, body, urgent=urgent, url=url, actions=actions, tag=tag))
         except Exception as e:  # noqa: BLE001
-            log.warning("notify failed: %s", type(e).__name__)
+            log.warning("web push failed: %s", type(e).__name__)
+        if self.ntfy_topic and (delivered == 0 or self.ntfy_all):
+            try:
+                await self._ntfy(title, body, urgent=urgent, url=url, actions=actions)
+            except Exception as e:  # noqa: BLE001
+                log.warning("ntfy fallback failed: %s", type(e).__name__)
 
     async def alert(self, alert: Alert) -> None:
         try:
@@ -143,16 +150,17 @@ class HearthNotifier:
 
     # ------------------------------------------------------------------ Web Push
 
-    async def _push_all(self, payload: dict) -> None:
+    async def _push_all(self, payload: dict) -> int:
+        """Send to every subscribed browser. Returns how many deliveries the push services accepted."""
         if not (self.vapid_private and self.vapid_public):
-            return
+            return 0
         try:
             subs = await self._get_subs()
         except Exception as e:  # noqa: BLE001
             log.warning("could not load push subscriptions: %s", type(e).__name__)
-            return
+            return 0
         if not subs:
-            return
+            return 0
         data = json.dumps(payload)
         results = await asyncio.gather(*(asyncio.to_thread(self._push_one, s, data) for s in subs),
                                        return_exceptions=True)
@@ -160,6 +168,7 @@ class HearthNotifier:
         set_status("web_push", "ok" if failed < len(subs) or not subs else "error")
         if failed:
             log.warning("web push: %d of %d deliveries failed", failed, len(subs))
+        return len(subs) - failed
 
     def _push_one(self, sub: PushSubscription, data: str) -> bool:
         fn = self._webpush
