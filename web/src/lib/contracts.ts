@@ -3,6 +3,7 @@
 
 export type CheckinKind = "drink" | "meal" | "med";
 export type Transport = "facetime" | "kiosk" | "mock";
+export type RequestedTransport = Transport | "auto";
 export type CheckinStatus = "queued" | "ringing" | "connected" | "watching" | "ended";
 // reported = she said she did it; not seen.
 export type CheckinOutcome = "confirmed" | "reported" | "refused" | "no_answer" | "concern" | "error";
@@ -150,9 +151,16 @@ export interface WatchRequest {
   minutes: 30 | 120;
 }
 
+export interface Route {
+  transport: "kiosk" | "facetime";
+  reason: string;
+  kitchen_online: boolean;
+  platform: "ios" | "android" | "other" | null;
+}
+
 export interface StartCheckinRequest {
   kind?: CheckinKind;
-  transport?: Transport | null;
+  transport?: RequestedTransport | null;
   cue_id?: string | null;
   mock_outcome?: CheckinOutcome | null;
 }
@@ -283,7 +291,7 @@ export interface AgentJob {
 
 export interface Health {
   ok: boolean;
-  transport_default: Transport;
+  transport_default: RequestedTransport;
   integrations: Record<string, "ok" | "missing_key" | "error" | "mock">;
 }
 

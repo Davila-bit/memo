@@ -19,6 +19,7 @@ import type {
   Me,
   Privacy,
   Resident,
+  Route,
   ScheduleItem,
   StartCheckinRequest,
   Today,
@@ -46,6 +47,7 @@ export interface HearthApi {
   logout(): Promise<void>;
   me(): Promise<Me>;
   today(): Promise<Today>;
+  route(): Promise<Route>;
   watch(): Promise<Watch>;
   startWatch(body: WatchRequest): Promise<Watch>;
   stopWatch(): Promise<Watch>;
@@ -122,6 +124,7 @@ const realApi: HearthApi = {
   logout: () => request("POST", "/api/auth/logout", undefined, { auth: false }),
   me: () => request("GET", "/api/me"),
   today: () => request("GET", "/api/today"),
+  route: () => request("GET", "/api/route"),
   watch: () => request("GET", "/api/watch"),
   startWatch: (body) => request("POST", "/api/watch", body),
   stopWatch: () => request("DELETE", "/api/watch"),

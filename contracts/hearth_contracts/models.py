@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 CheckinKind = Literal["drink", "meal", "med"]
 Transport = Literal["facetime", "kiosk", "mock"]
+RequestedTransport = Literal["auto", "facetime", "kiosk", "mock"]
 
 # Lifecycle of one check-in call. Always moves forward; `ended` is terminal.
 CheckinStatus = Literal[
@@ -207,9 +208,16 @@ class WatchRequest(Model):
     minutes: Literal[30, 120]
 
 
+class Route(Model):
+    transport: Literal["kiosk", "facetime"]
+    reason: str
+    kitchen_online: bool
+    platform: Literal["ios", "android", "other"] | None = None
+
+
 class StartCheckinRequest(Model):
     kind: CheckinKind = "drink"
-    transport: Transport | None = None  # None = server default (HEARTH_TRANSPORT)
+    transport: RequestedTransport | None = None  # None = server default (HEARTH_TRANSPORT)
     cue_id: str | None = None
     mock_outcome: CheckinOutcome | None = None  # mock only: confirmed/reported/refused/no_answer/concern/error
 
@@ -331,7 +339,7 @@ class KioskToken(Model):
 
 class Health(Model):
     ok: bool
-    transport_default: Transport
+    transport_default: RequestedTransport
     integrations: dict[str, Literal["ok", "missing_key", "error", "mock"]]
 
 

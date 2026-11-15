@@ -20,7 +20,7 @@ from .auth import Auth
 from .checkins import CheckinService
 from .clock import Bus, DemoClock
 from .fallbacks import KeywordSearch, LogNotifier, MockCallService, RegexRedactor, TemplateDigest
-from .routes import api, hooks, internal, live, public, watch_internal
+from .routes import api, hooks, internal, kiosk_internal, live, public, watch_internal
 from .seed import seed
 from .settings import Settings
 from .store import MemoryStore, Store
@@ -38,7 +38,7 @@ class _WebhookAccessFilter(logging.Filter):
             client, method, path, version, status = record.args
             if isinstance(path, str) and path.startswith("/hooks/chert/"):
                 record.args = (client, method, "/hooks/chert/<redacted>", version, status)
-            elif isinstance(path, str) and path.startswith("/internal/watch/"):
+            elif isinstance(path, str) and path.startswith(("/internal/watch/", "/internal/kiosk/")):
                 record.args = (client, method, path.split("?", 1)[0], version, status)
         return True
 
@@ -222,6 +222,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(api)
     app.include_router(internal)
     app.include_router(watch_internal)
+    app.include_router(kiosk_internal)
     app.include_router(live)
     if calls_router is not None:
         app.include_router(calls_router)
