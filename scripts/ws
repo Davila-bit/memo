@@ -5,7 +5,8 @@
 # Falls back to a throwaway hearth-dev:latest container if the workspace isn't running.
 set -euo pipefail
 
-REPO=/path/to/memo
+# The main checkout (also when called from a git worktree of it).
+REPO=${HEARTH_REPO:-$(dirname "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --path-format=absolute --git-common-dir)")}
 IMAGE=hearth-dev:latest
 WS_NAME=${WS_NAME:-hearth}
 

@@ -24,7 +24,7 @@ SENTENCES: list[tuple[str, list[str], list[str]]] = [
     ("Held up the blue mug, drank twice, mug lower after", ["blue mug", "drank twice"], []),
     ("not thirsty, had tea with Mrs Patel next door", ["not thirsty", "tea", "next door"], ["Patel"]),
     ("Said Sarah phones her every Sunday at 404-555-0187", ["Sunday"], ["Sarah", "0187"]),
-    ("Told me she lives at 12 Oak Tree Lane, Decatur, and her email is maggie.ellis@gmail.com",
+    ("Told me she lives at 12 Oak Tree Lane, Decatur, and her email is maggie.ellis@example.com",
      ["she lives at"], ["Oak Tree", "maggie", "Decatur"]),
     ("She said she fell in the kitchen and John from church is coming at 3", ["fell in the kitchen", "church"],
      ["John"]),

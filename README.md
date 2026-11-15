@@ -97,7 +97,7 @@ Web e2e tests use Playwright with `@axe-core/playwright`. Every page and state t
 ## Privacy and safety
 
 - **Not recorded.** No call video, audio or frames are written to disk or cloud storage. Only structured events and short text notes are stored.
-- **PII redaction.** Names, phone numbers and addresses are stripped from evidence text and transcripts by Presidio before storage, search indexing or digest generation.
+- **PII redaction.** Names, phone numbers and addresses are stripped by Presidio from the short evidence notes before they are stored, indexed for search or summarised. Transcripts are never stored.
 - **No voice cloning.** The helper identifies itself as "Sarah's helper, an assistant". It never impersonates a family member.
 - **No medical advice.** The helper never changes doses, suggests treatments or gives clinical guidance. The schedule is set by the family.
 - **Consent and deletion.** A consent record (from the person or their healthcare agent) is stored. All data can be deleted from the privacy page. Events auto-expire after 90 days (Tiger Data retention policy).

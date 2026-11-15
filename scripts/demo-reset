@@ -5,7 +5,7 @@
 #   scripts/demo-reset real      back to the real clock, reseed
 # The clock offset lives in the API process: run this again after every `scripts/dev-up`.
 set -euo pipefail
-RT=${HEARTH_RUNTIME_ENV:-~/.config/memo-secrets/runtime.env}
+RT=${HEARTH_RUNTIME_ENV:-$HOME/.config/memo-secrets/runtime.env}
 API=${HEARTH_API:-http://127.0.0.1:8000}
 set -a; . "$RT"; set +a
 jar=$(mktemp); trap 'rm -f "$jar"' EXIT
