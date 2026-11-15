@@ -15,3 +15,6 @@ EmoryHacks2026*.pdf
 .gh/
 # project-level fnox config (names only; values live in the keyring)
 fnox.toml
+# plaintext credential downloads: never commit
+*credentials*.txt
+*api-keys*.txt
