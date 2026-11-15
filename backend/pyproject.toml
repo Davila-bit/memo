@@ -11,6 +11,7 @@ dependencies = [
     "httpx>=0.27",
     # core (store, auth)
     # calls (LiveKit, Chert)
+    "livekit-api>=1.0",
     # integrations (push, search, digest, redaction)
 ]
 
