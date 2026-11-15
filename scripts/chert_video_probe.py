@@ -137,8 +137,14 @@ async def watch_audio(track: rtc.Track, key: str, st: Stats) -> None:
 async def publish_loops(room: rtc.Room) -> None:
     vsrc = rtc.VideoSource(W, H)
     vtrack = rtc.LocalVideoTrack.create_video_track("cue-card", vsrc)
+    # one sharp layer: FaceTime is the only viewer, so no simulcast
     await room.local_participant.publish_track(
-        vtrack, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_CAMERA)
+        vtrack,
+        rtc.TrackPublishOptions(
+            source=rtc.TrackSource.SOURCE_CAMERA,
+            simulcast=False,
+            video_encoding=rtc.VideoEncoding(max_bitrate=2_500_000, max_framerate=FPS),
+        ),
     )
     asrc = rtc.AudioSource(48000, 1)
     atrack = rtc.LocalAudioTrack.create_audio_track("agent-voice", asrc)
@@ -262,6 +268,7 @@ async def main() -> None:
 
     active_at = None
     last = None
+    seen_events: set = set()
     deadline = time.time() + 75  # ring budget
     try:
         while True:
@@ -270,8 +277,12 @@ async def main() -> None:
             d = r.get("data") or {}
             status = d.get("status")
             if status != last:
-                log(f"call status: {status} end={d.get('end_reason')} fail={d.get('failure_reason')}")
+                log(f"call status: {status} term={d.get('terminal_reason')}/{d.get('terminal_detail')}")
                 last = status
+            for e in d.get("facetime_call_events") or []:
+                if e.get("id") not in seen_events:
+                    seen_events.add(e.get("id"))
+                    log(f"chert event: {e.get('event_type')} ({e.get('source')})")
             if status == "active" and active_at is None:
                 active_at = time.time()
             if status in ("ended", "failed", "completed", "canceled", "cancelled", "declined", "no_answer"):
