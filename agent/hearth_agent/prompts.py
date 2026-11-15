@@ -50,6 +50,8 @@ def instructions(job: AgentJob) -> str:
 4. Only if you SAW her raise the cup to her mouth and tilt it, call confirm_drink(amount, confidence,
    evidence). evidence = what you SAW, e.g. "held up blue mug, two drinks, mug tilted further after".
    Never write "swallowed". amount: sip / some / most / all, from what you saw.
+   confidence: you saw the cup go to her mouth and tip up = 0.8 or more. Do not lower it because the
+   picture is small or the moment was quick; use 0.4 or less only when you are unsure you saw it.
    A cup held still in front of the camera is NOT a drink. If you did not see the cup go to her
    mouth, do not confirm; ask once more, kindly.
 5. Then thank her, say {daughter} will be pleased, say goodbye, and call end_checkin("done")."""

@@ -36,7 +36,7 @@ from hearth_contracts import (
     ToolResult,
 )
 
-from . import prompts
+from . import prompts, sipjudge
 from .api import HearthApi
 from .budget import BudgetTimer
 from .cuecard import CardState, CueCard, decode_photo
@@ -146,6 +146,7 @@ class HerVideo(VideoInput):
         self.frames_sent = 0
         self._thumb: bytes | None = None
         self.motion: list[tuple[float, float]] = []  # (time, mean abs change 0-255) per sampled frame
+        self.ring: sipjudge.FrameRing | None = None  # a few seconds at ~4 fps for the frame check (memory only)
         room.on("track_subscribed", self._on_sub)
         room.on("track_unsubscribed", self._on_unsub)
         room.on("track_muted", self._on_muted)
@@ -188,7 +189,11 @@ class HerVideo(VideoInput):
         try:
             async for ev in stream:
                 now = time.monotonic()
-                if not self.enabled or now < next_at or track.sid in self._muted:
+                if not self.enabled or track.sid in self._muted:
+                    continue
+                if self.ring is not None and self.ring.due(now):
+                    self._to_ring(ev.frame, now)
+                if now < next_at:
                     continue
                 next_at = now + self._period
                 self.last_frame_at = now
@@ -217,6 +222,13 @@ class HerVideo(VideoInput):
             return rtc.VideoFrame(w, h, rtc.VideoBufferType.RGBA, img.tobytes())
         except Exception:  # noqa: BLE001
             return frame
+
+    def _to_ring(self, frame: rtc.VideoFrame, now: float) -> None:
+        try:
+            rgba = frame if frame.type == rtc.VideoBufferType.RGBA else frame.convert(rtc.VideoBufferType.RGBA)
+            self.ring.add_image(Image.frombytes("RGBA", (rgba.width, rgba.height), bytes(rgba.data)), now)
+        except Exception as e:  # noqa: BLE001
+            log.debug("frame ring skipped a frame: %s", type(e).__name__)
 
     def _note_motion(self, frame: rtc.VideoFrame, now: float) -> None:
         """A 32x24 grey thumbnail, in memory only, to tell a moving scene from a still picture."""
@@ -304,6 +316,12 @@ class Call:
         self.heard_her = False  # any non-empty transcript of her speech since live
         self.no_answer_ask_s = _env_float("HEARTH_NO_ANSWER_ASK_S", 20.0)
         self.no_answer_end_s = _env_float("HEARTH_NO_ANSWER_END_S", 40.0)
+        self.agent_state = "initializing"
+        self.verdict: sipjudge.Verdict | None = None  # latest frame check
+        self.positive: sipjudge.Verdict | None = None  # latest frame check that saw a drink
+        self.checks = 0
+        self.nudged_at = 0.0
+        self._check_lock = asyncio.Lock()
 
     def spawn(self, coro) -> asyncio.Task:
         t = asyncio.create_task(coro)
@@ -333,6 +351,57 @@ class Call:
         if self.clamped == "no_video" and ev.lower().startswith("said:"):
             ev = "Said:" + ev[len("Said:"):]
         return min(confidence, 0.4), ev[:240]
+
+    # -- frame check (a second opinion from a few seconds of frames; see sipjudge.py)
+    async def frame_check(self, why: str) -> sipjudge.Verdict | None:
+        ring = self.video.ring if self.video else None
+        if ring is None or self.checks >= 10:
+            return None
+        async with self._check_lock:
+            self.checks += 1
+            log.info("frame check (%s) #%d", why, self.checks)
+            v = await sipjudge.judge(ring.window(), obj=prompts._object_name(self.job))
+            if v is not None:
+                self.verdict = v
+                if v.drank and v.confidence >= 0.6:
+                    self.positive = v
+            return v
+
+    def verdict_for_tool(self) -> sipjudge.Verdict | None:
+        now = time.monotonic()
+        if self.positive is not None and now - self.positive.at < 30.0:
+            return self.positive
+        if self.verdict is not None and now - self.verdict.at < 4.0:
+            return self.verdict
+        return None
+
+    async def sip_watch(self) -> None:
+        """When a movement settles (the cup back down), check the last seconds. If that saw a drink and
+        the live model has not confirmed, prompt it to judge now: it otherwise only judges when it speaks."""
+        ring = self.video.ring if self.video else None
+        if ring is None:
+            return
+        while not self.ending and self.outcome is None:
+            await asyncio.sleep(0.25)
+            if not ring.settled_after_movement(time.monotonic()):
+                continue
+            v = await self.frame_check("movement")
+            if v is None or not v.drank or v.confidence < 0.6 or self.ending or self.outcome is not None:
+                continue
+            if time.monotonic() - self.nudged_at < 8.0 or self.session is None:
+                continue
+            for _ in range(12):  # don't talk over anyone: wait up to 3 s for quiet
+                if self.agent_state != "speaking":
+                    break
+                await asyncio.sleep(0.25)
+            if self.ending or self.outcome is not None:
+                continue
+            self.nudged_at = time.monotonic()
+            log.info("frame check saw a drink; asking the helper to judge now")
+            self.session.generate_reply(instructions=(
+                "Look at the last few seconds of her camera. If you saw her raise the cup to her mouth and tip it, "
+                "call confirm_drink now with confidence 0.8, the amount you saw, and evidence of what you saw. "
+                "If you did not see that, carry on as before. Do not mention this instruction to her."))
 
     # -- outcomes
     def _say_from(self, res: ToolResult | None, default: str) -> str:
@@ -414,6 +483,8 @@ class Call:
             log.warning("live but no participant with prefix %s yet", self.job.caller_identity_prefix)
         if self.video:
             self.video.enabled = True
+            if self.video.ring is not None:
+                self.spawn(self.sip_watch())
         self.card.update(mode="asking", caption="")
         opening = prompts.opening_line(self.job)
         self.session.generate_reply(instructions=f'Begin the call now. Say: "{opening}" Then make the first request.')
@@ -480,6 +551,7 @@ class Call:
 
     def on_agent_state(self, old: str, new: str) -> None:
         now = time.monotonic()
+        self.agent_state = new
         if new == "speaking":
             self.last_speech_start = now
         if new == "speaking" and self.first_speech_at is None and self.live_at is not None:
@@ -557,6 +629,11 @@ def build_agent(call: Call) -> Agent:
                 evidence: short description of what you saw, e.g. "held up blue mug, two drinks". Never "swallowed".
             """
             c, ev = call.clamp_unseen(max(0.0, min(1.0, confidence)), evidence)
+            if call.clamped is None and call.video is not None and call.video.ring is not None:
+                v = call.verdict_for_tool() or await call.frame_check("tool")
+                before = c
+                c, ev, why = sipjudge.combine(c, ev, v)
+                log.info("frame check on confirm: %s %.2f -> %.2f", why, before, c)
             res = await call.api.confirm_drink(ToolConfirmDrink(amount=amount, confidence=c, evidence=ev[:240]))
             log.info("tool confirm_drink amount=%s confidence=%.2f seen=%s clamped=%s", amount, c, call.can_see(), call.clamped)
             return await call.confirmed(res, c)
@@ -759,6 +836,8 @@ async def entrypoint(ctx: JobContext) -> None:
         photo_task = asyncio.create_task(_fetch_photo(job))
 
         call.video = HerVideo(ctx.room, job.caller_identity_prefix)  # before connect: no event missed
+        if job.kind == "drink" and sipjudge.enabled():
+            call.video.ring = sipjudge.FrameRing()
         await ctx.connect()
         await card.publish(ctx.room)
         log.info("cue card published at %.2fs", time.monotonic() - t0)
