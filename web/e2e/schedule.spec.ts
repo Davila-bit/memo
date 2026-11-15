@@ -1,0 +1,72 @@
+import { expect, test } from "@playwright/test";
+import path from "node:path";
+import { expectAccessible, shot, signIn } from "./helpers";
+
+test("schedule switches, editing, adding, deleting and cue photos", async ({ page }, info) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Schedule", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Check-in times" })).toBeVisible();
+  await expect(page.getByText("Quiet hours:", { exact: false })).toContainText("9:00 pm to 7:30 am");
+  await expectAccessible(page, info, "schedule");
+  await shot(page, info, "schedule", true);
+
+  const water = page.getByRole("switch", { name: "Afternoon water check-in", exact: true });
+  await water.click();
+  await expect(water).toHaveAttribute("aria-checked", "false");
+  await expect(water).toBeEnabled();
+  await water.click();
+  await expect(water).toHaveAttribute("aria-checked", "true");
+  await expect(water).toBeEnabled();
+
+  await page.getByRole("button", { name: "Edit Afternoon water", exact: true }).click();
+  let dialog = page.getByRole("dialog", { name: "Edit check-in", exact: true });
+  await dialog.getByLabel("Time", { exact: true }).fill("15:45");
+  await dialog.getByLabel("Label", { exact: true }).fill("A drink after the garden");
+  await dialog.getByLabel("Which cue to show").selectOption("cue_mug");
+  await expectAccessible(page, info, "schedule-edit");
+  await shot(page, info, "schedule-edit");
+  await dialog.getByRole("button", { name: "Save check-in" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId("schedule-sch_drink_1530")).toContainText("3:45 pm");
+  await expect(page.getByTestId("schedule-sch_drink_1530")).toContainText("A drink after the garden");
+
+  await page.getByRole("button", { name: "Add a check-in", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "Add a check-in" });
+  await dialog.getByRole("button", { name: "Save check-in" }).click();
+  await expect(dialog.getByLabel("Label", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  await dialog.getByLabel("Label", { exact: true }).fill("A little water before supper");
+  await dialog.getByLabel("Time", { exact: true }).fill("17:00");
+  await dialog.getByRole("button", { name: "Save check-in" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("switch", { name: "A little water before supper check-in" })).toBeVisible();
+  await page.getByRole("button", { name: "Delete A little water before supper", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "Remove this check-in?" });
+  await dialog.getByRole("button", { name: "Keep check-in" }).click();
+  await expect(page.getByRole("switch", { name: "A little water before supper check-in" })).toBeVisible();
+  await page.getByRole("button", { name: "Delete A little water before supper", exact: true }).click();
+  await dialog.getByRole("button", { name: "Remove check-in", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("switch", { name: "A little water before supper check-in" })).toHaveCount(0);
+
+  const cue = page.getByRole("article").first();
+  await cue.getByRole("button", { name: /^Edit / }).click();
+  dialog = page.getByRole("dialog", { name: "Edit cue" });
+  await dialog.getByLabel("Title", { exact: true }).fill("Her favourite blue mug");
+  await dialog.getByLabel("The line shown on the call").fill("Some water with me, Margaret?");
+  await dialog.getByRole("button", { name: "Save cue" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(cue.getByRole("heading")).toHaveText("Her favourite blue mug");
+  const photo = cue.getByLabel("Upload a photo");
+  await photo.setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("not a photo") });
+  await expect(cue.getByRole("alert")).toHaveText("Choose a JPEG, PNG or WebP photo.");
+  await photo.setInputFiles({ name: "large.png", mimeType: "image/png", buffer: Buffer.alloc(5 * 1024 * 1024 + 1) });
+  await expect(cue.getByRole("alert")).toContainText("too large");
+  await photo.setInputFiles(path.join(__dirname, "../public/icons/icon-192.png"));
+  await expect(photo).toBeEnabled();
+  await expect(cue.getByRole("img", { name: "Her favourite blue mug" })).toBeVisible();
+  await expect(cue.getByRole("alert")).toHaveCount(0);
+  await expectAccessible(page, info, "schedule-cues");
+  await expect(page.getByRole("button", { name: "Dismiss", exact: true })).toHaveCount(1);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot(page, info, "schedule-cues", true);
+});

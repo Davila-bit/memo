@@ -610,10 +610,13 @@ export const mockApi: HearthApi = {
   },
   async uploadCuePhoto(cid, file) {
     requireSession();
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new ApiError(400, "Choose a JPEG, PNG or WebP photo.");
+    if (file.size > 5 * 1024 * 1024) throw new ApiError(400, "That photo is too large. Choose one under 5 MB.");
     const c = S().cues.find((x) => x.id === cid);
     if (!c) throw new ApiError(404, "That cue isn't there.");
-    c.image_url = URL.createObjectURL(file);
-    return delay(c);
+    const next = { ...c, image_url: URL.createObjectURL(file) };
+    S().cues = S().cues.map((cue) => cue.id === cid ? next : cue);
+    return delay(next);
   },
   async resident() {
     requireSession();
@@ -626,12 +629,36 @@ export const mockApi: HearthApi = {
   },
   async ask({ q }) {
     requireSession();
-    const words = q.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
-    const hits = S()
-      .events.filter((e) => words.some((w) => `${e.summary} ${e.evidence} ${e.kind}`.toLowerCase().includes(w)))
-      .slice(0, 5)
-      .map((event) => ({ event, snippet: event.summary }));
-    const answer = hits.length
+    const question = q.toLowerCase();
+    const words = question.split(/\W+/).filter((w) => w.length > 3);
+    // Keep the practice suggestions useful without pretending this is conversational search.
+    const kind = /say no|refus|didn.t want/.test(question) ? "refused"
+      : /missed/.test(question) ? "missed"
+      : /tablet|pill|medication/.test(question) ? "med"
+      : /eat|ate|meal|lunch|breakfast|supper/.test(question) ? "meal"
+      : /drink|drank|drunk|water|fluid/.test(question) ? "drink" : null;
+    const current = now();
+    const day = new Date(current);
+    if (question.includes("yesterday")) day.setDate(day.getDate() - 1);
+    const weekday = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].findIndex((d) => question.includes(d));
+    if (weekday >= 0) day.setDate(day.getDate() - (day.getDay() - weekday + 7) % 7);
+    const weekStart = new Date(current);
+    weekStart.setDate(weekStart.getDate() - (weekStart.getDay() + 6) % 7);
+    weekStart.setHours(0, 0, 0, 0);
+    const matched = S().events.filter((e) => {
+      const time = new Date(e.ts);
+      if (question.includes("today") || question.includes("yesterday") || weekday >= 0) {
+        if (time.toDateString() !== day.toDateString()) return false;
+      }
+      if (question.includes("this week") && time < weekStart) return false;
+      if (question.includes("evening") && time.getHours() < 16) return false;
+      if (question.includes("lunch") && (time.getHours() < 11 || time.getHours() >= 15)) return false;
+      return kind ? e.kind === kind : words.some((w) => `${e.summary} ${e.evidence} ${e.kind}`.toLowerCase().includes(w));
+    }).sort((a, b) => b.ts.localeCompare(a.ts));
+    const hits = matched.slice(0, 5).map((event) => ({ event, snippet: event.evidence || event.summary }));
+    const answer = /how much/.test(question) && kind === "drink" && hits.length
+      ? `The helper observed about ${matched.reduce((sum, e) => sum + (e.volume_ml_est ?? 0), 0)} ml${question.includes("today") ? " today" : " in the matching moments"}.`
+      : hits.length
       ? `Here's what the helper logged: ${hits[0].event.summary.toLowerCase()} at ${formatTime(hits[0].event.ts, tz)}.`
       : "I couldn't find anything about that in the log.";
     return delay({ q, answer, hits, engine: "fallback" as const }, 400);
