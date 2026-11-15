@@ -102,7 +102,10 @@ async def kiosk_token(request: Request, key: str = Query(...), device: str | Non
         return await calls.kiosk_token(device or request.app.state.settings.kiosk_device)
     except Exception as e:
         log.warning("kiosk token failed: %s", e)
-        raise HTTPException(status_code=503, detail="Kiosk calls aren't available right now.") from e
+        # hearth.calls.CallsUnavailable carries a plain sentence meant for the page.
+        unavailable = type(e).__name__ == "CallsUnavailable" and str(e)
+        detail = str(e) if unavailable else "Kiosk calls aren't available right now."
+        raise HTTPException(status_code=503, detail=detail) from e
 
 
 # ============================================================================ session-only

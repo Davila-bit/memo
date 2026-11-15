@@ -386,3 +386,28 @@ def test_plugins_are_picked_up(make_client, monkeypatch):
     assert m["transport"] == "mock"
     wait_ended(c, m["id"])
     assert subs_seen and callable(subs_seen[0])
+
+    # After live, call_finished always carries outcome=None (+ an error when the end wasn't clean).
+    svc = c.app.state.svc
+    late = c.post("/api/checkins", json={"kind": "drink"}).json()
+    c.portal.call(svc.call_connected, late["id"])
+    c.portal.call(svc.call_finished, late["id"], None, "time budget reached")
+    done = c.get(f"/api/checkins/{late['id']}").json()
+    assert done["outcome"] == "error" and done["error"] == "time budget reached"
+    ev = c.get("/api/events", params={"limit": 1}).json()[0]
+    assert ev["kind"] == "missed" and ev["checkin_id"] == late["id"]
+    ok = c.post("/api/checkins", json={"kind": "drink"}).json()
+    internal(c, ok["id"], "confirm_drink", {"amount": "all", "confidence": 0.9, "evidence": "drank"})
+    c.portal.call(svc.call_finished, ok["id"], None, None)
+    assert c.get(f"/api/checkins/{ok['id']}").json()["outcome"] == "confirmed"
+
+    # kiosk_token raising CallsUnavailable -> 503 with its sentence.
+    class CallsUnavailable(Exception):
+        pass
+
+    async def no_kiosk(device):
+        raise CallsUnavailable("The kitchen tablet isn't set up yet.")
+
+    c.app.state.real_calls.kiosk_token = no_kiosk
+    r = c.get("/api/kiosk/token", params={"key": TOKEN})
+    assert r.status_code == 503 and r.json()["detail"] == "The kitchen tablet isn't set up yet."
