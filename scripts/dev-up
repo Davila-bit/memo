@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Start the whole Hearth stack inside OUR Coder workspace container, detached, with logs in .cache/run/.
+#   scripts/dev-up                 API :8000, agent worker, web :3000 (next dev)
+#   scripts/dev-up --public        also two cloudflared quick tunnels (public https URLs for the phone
+#                                  and the kiosk tablet); URLs are printed and saved in .cache/run/urls
+#   scripts/dev-up --prod          web as `next build && next start` (demo mode)
+#   scripts/dev-up api|agent|web   restart just one part (flags still apply)
+#   scripts/dev-down               stop everything
+# Keys come from fnox; three runtime secrets (passcode, session secret, internal token) are generated
+# once into $HEARTH_RUNTIME_ENV (default ~/.config/memo-secrets/runtime.env, mode 600), which
+# is outside the repo so no workspace can read it. Nothing secret is printed.
+# Settings passed through when set: HEARTH_TRANSPORT (default mock), HEARTH_SCHEDULER (default 0 so an
+# unattended server never places real calls), HEARTH_RETRY_SECONDS, GEMINI_LIVE_MODEL, GEMINI_TEXT_MODEL.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+ROOT=$PWD
+RUN=.cache/run
+mkdir -p "$RUN"
+
+public=0; prod=0; parts=()
+for a in "$@"; do
+  case "$a" in
+    --public) public=1 ;;
+    --prod) prod=1 ;;
+    api|agent|web) parts+=("$a") ;;
+    *) echo "dev-up: unknown argument $a" >&2; exit 2 ;;
+  esac
+done
+[ ${#parts[@]} -eq 0 ] && parts=(api agent web)
+
+WS=$(docker ps -q --filter label=hearth.workspace=true --filter "label=coder.owner=${WS_OWNER:-hearth}" \
+  --filter "label=coder.workspace_name=${WS_NAME:-hearth}" | head -1)
+[ -n "$WS" ] || { echo "dev-up: our Coder workspace container is not running" >&2; exit 1; }
+
+# ---- runtime secrets (generated once, never printed)
+RT=${HEARTH_RUNTIME_ENV:-$HOME/.config/memo-secrets/runtime.env}
+if [ ! -f "$RT" ]; then
+  mkdir -p "$(dirname "$RT")"; chmod 700 "$(dirname "$RT")"
+  ( umask 077
+    printf 'HEARTH_PASSCODE=%s\n' "$(shuf -i 100000-999999 -n 1)" > "$RT"
+    printf 'HEARTH_SESSION_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$RT"
+    printf 'HEARTH_INTERNAL_TOKEN=%s\n' "$(openssl rand -hex 24)" >> "$RT" )
+  echo "dev-up: generated runtime secrets in $RT (the sign-in passcode is in there)"
+fi
+set -a; . "$RT"; set +a
+
+# ---- public tunnels (optional)
+TUN_IMG=cloudflare/cloudflared:2026.3.0
+tunnel() { # name port -> prints url
+  local name=$1 port=$2 url=""
+  if [ -z "$(docker ps -q --filter "name=^${name}$")" ]; then
+    docker rm -f "$name" >/dev/null 2>&1 || true
+    docker run -d --name "$name" --network "container:$WS" "$TUN_IMG" tunnel --no-autoupdate \
+      --url "http://localhost:$port" >/dev/null
+  fi
+  for _ in $(seq 1 30); do
+    url=$(docker logs "$name" 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)
+    [ -n "$url" ] && break; sleep 1
+  done
+  [ -n "$url" ] || { echo "dev-up: tunnel $name did not report a URL" >&2; exit 1; }
+  echo "$url"
+}
+WEB_URL=""; API_URL=""
+if [ "$public" = 1 ]; then
+  API_URL=$(tunnel hearth-tunnel-api 8000)
+  WEB_URL=$(tunnel hearth-tunnel-web 3000)
+  printf 'web=%s\napi=%s\n' "$WEB_URL" "$API_URL" > "$RUN/urls"
+elif [ -f "$RUN/urls" ] && [ -n "$(docker ps -q --filter 'name=^hearth-tunnel-web$')" ]; then
+  WEB_URL=$(sed -n 's/^web=//p' "$RUN/urls"); API_URL=$(sed -n 's/^api=//p' "$RUN/urls")
+fi
+
+export HEARTH_TRANSPORT=${HEARTH_TRANSPORT:-mock}
+export HEARTH_SCHEDULER=${HEARTH_SCHEDULER:-0}
+export HEARTH_API_BASE=http://127.0.0.1:8000
+export HEARTH_API_ORIGIN=http://127.0.0.1:8000
+[ -n "$WEB_URL" ] && export HEARTH_PUBLIC_URL=$WEB_URL HEARTH_CORS_ORIGINS=$WEB_URL
+[ -n "$API_URL" ] && export NEXT_PUBLIC_HEARTH_WS_URL="wss://${API_URL#https://}/ws"
+
+SECRETS=(TIGER_DATABASE_URL LIVEKIT_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET CHERT_API_KEY CHERT_PROJECT_ID
+  CHERT_LINE_ID CHERT_IPAD_NUMBER GEMINI_API_KEY TYPESENSE_HOST TYPESENSE_API_KEY NTFY_TOPIC
+  VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY VAPID_SUBJECT)
+listing=$(fnox list 2>/dev/null || true)
+found=()
+for n in "${SECRETS[@]}"; do grep -qE "^[[:space:]]*$n[[:space:]]" <<<"$listing" && found+=("$n"); done
+PLAIN=(HEARTH_PASSCODE HEARTH_SESSION_SECRET HEARTH_INTERNAL_TOKEN HEARTH_TRANSPORT HEARTH_SCHEDULER
+  HEARTH_API_BASE HEARTH_API_ORIGIN HEARTH_PUBLIC_URL HEARTH_CORS_ORIGINS NEXT_PUBLIC_HEARTH_WS_URL
+  HEARTH_RETRY_SECONDS HEARTH_MOCK_SCALE HEARTH_KIOSK_DEVICE HEARTH_RING_SECONDS HEARTH_REDACT_NAMES
+  GEMINI_LIVE_MODEL GEMINI_TEXT_MODEL NTFY_URL HEARTH_TIMEZONE)
+envargs=()
+for n in "${found[@]}" "${PLAIN[@]}"; do [ -n "${!n:-}" ] || [[ " ${found[*]} " == *" $n "* ]] && envargs+=(-e "$n"); done
+
+stop_part() { # kill whatever we started for this part, inside our container only
+  local pat
+  case "$1" in
+    api) pat='uvicorn hearth[.]core[.]app' ;;
+    agent) pat='python -m hearth[_]agent' ;;
+    web) pat='next (dev|start) -p 300[0]' ;;
+  esac
+  docker exec -u coder "$WS" bash -c "
+    for pid in \$(pgrep -f '$pat' || true); do kill -TERM -- -\$(ps -o pgid= -p \$pid | tr -d ' ') 2>/dev/null || kill \$pid 2>/dev/null || true; done
+    sleep 1" || true
+}
+
+start_part() {
+  local name=$1 cmd
+  case "$name" in
+    api) cmd="cd backend && uv sync -q && exec uv run uvicorn hearth.core.app:create_app --factory --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'" ;;
+    agent) cmd="cd agent && uv sync -q && exec uv run python -m hearth_agent start" ;;
+    web) if [ "$prod" = 1 ]; then cmd="cd web && pnpm install --frozen-lockfile >/dev/null && pnpm exec next build && exec pnpm exec next start -p 3000 -H 0.0.0.0"
+         else cmd="cd web && pnpm install --frozen-lockfile >/dev/null && exec pnpm exec next dev -p 3000 -H 0.0.0.0"; fi ;;
+  esac
+  stop_part "$name"
+  local run=(docker exec -d -u coder -w "$ROOT" "${envargs[@]}" "$WS" setsid bash -lc "{ $cmd; } > $ROOT/$RUN/$name.log 2>&1")
+  if [ ${#found[@]} -gt 0 ]; then
+    fnox exec --only "$(IFS=,; echo "${found[*]}")" -- "${run[@]}"
+  else
+    "${run[@]}"
+  fi
+  echo "dev-up: started $name (log: $RUN/$name.log)"
+}
+
+for p in "${parts[@]}"; do start_part "$p"; done
+
+echo "dev-up: transport=$HEARTH_TRANSPORT scheduler=$HEARTH_SCHEDULER keys: ${found[*]:-none}"
+echo "  API   http://127.0.0.1:8000   web http://127.0.0.1:3000   kiosk http://127.0.0.1:8000/kiosk?device=${HEARTH_KIOSK_DEVICE:-kitchen}&key=<HEARTH_INTERNAL_TOKEN>"
+[ -n "$WEB_URL" ] && echo "  public web   $WEB_URL" && echo "  public kiosk $API_URL/kiosk?device=${HEARTH_KIOSK_DEVICE:-kitchen}&key=<HEARTH_INTERNAL_TOKEN>"
+echo "  passcode and internal token: $RT"

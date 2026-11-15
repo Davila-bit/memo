@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Stop the Hearth stack started by scripts/dev-up (API, agent worker, web) in OUR Coder workspace.
+#   scripts/dev-down             stop the three processes, keep the public tunnels (URLs stay valid)
+#   scripts/dev-down --tunnels   also remove the tunnels
+set -euo pipefail
+cd "$(dirname "$0")/.."
+WS=$(docker ps -q --filter label=hearth.workspace=true --filter "label=coder.owner=${WS_OWNER:-hearth}" \
+  --filter "label=coder.workspace_name=${WS_NAME:-hearth}" | head -1)
+if [ -n "$WS" ]; then
+  docker exec -u coder "$WS" bash -c '
+    for pat in "uvicorn hearth[.]core[.]app" "python -m hearth[_]agent" "next (dev|start) -p 300[0]"; do
+      for pid in $(pgrep -f "$pat" || true); do
+        kill -TERM -- -$(ps -o pgid= -p $pid | tr -d " ") 2>/dev/null || kill $pid 2>/dev/null || true
+      done
+    done' || true
+  echo "dev-down: stopped API, agent and web"
+fi
+if [ "${1:-}" = "--tunnels" ]; then
+  docker rm -f hearth-tunnel-api hearth-tunnel-web >/dev/null 2>&1 || true
+  rm -f .cache/run/urls
+  echo "dev-down: tunnels removed"
+fi
