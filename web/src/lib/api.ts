@@ -85,7 +85,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: { 
   try {
     res = await fetch(path, init);
   } catch {
-    throw new ApiError(0, "Couldn't reach Hearth.");
+    throw new ApiError(0, "Couldn't reach Memo.");
   }
   if (res.status === 401 && opts.auth !== false) notifyUnauthorized();
   if (!res.ok) {

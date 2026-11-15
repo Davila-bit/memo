@@ -49,7 +49,7 @@ export function TodayView() {
       {loadError ? (
         <div role="status" className="flex items-center gap-3 rounded-2xl border border-amber-fill/60 bg-amber-tint px-4 py-3 text-[0.9375rem]">
           <WifiSlash aria-hidden className="size-5 shrink-0 text-amber-ink" weight="bold" />
-          <span className="flex-1">Couldn&apos;t reach Hearth. Trying again…</span>
+          <span className="flex-1">Couldn&apos;t reach Memo. Trying again…</span>
           <Button variant="quiet" size="sm" onClick={retry} disabled={retrying}>
             Retry
           </Button>
@@ -155,7 +155,7 @@ function Unreachable({ onRetry, busy }: { onRetry: () => void; busy: boolean }) 
   return (
     <div role="alert" className="flex flex-col items-center rounded-[var(--radius-card)] border border-line bg-surface px-6 py-14 text-center">
       <WifiSlash aria-hidden className="size-10 text-amber-ink" weight="duotone" />
-      <h1 className="mt-4 font-serif text-2xl font-medium">Couldn&apos;t reach Hearth. Trying again…</h1>
+      <h1 className="mt-4 font-serif text-2xl font-medium">Couldn&apos;t reach Memo. Trying again…</h1>
       <p className="mt-2 max-w-sm text-muted">Check-ins carry on as scheduled. This page will update by itself when the connection is back.</p>
       <Button className="mt-6" variant="quiet" onClick={onRetry} disabled={busy}>
         <ArrowClockwise aria-hidden className="size-5" /> {busy ? "Trying…" : "Try now"}

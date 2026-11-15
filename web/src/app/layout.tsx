@@ -16,10 +16,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Hearth", template: "%s · Hearth" },
+  title: { default: "Memo", template: "%s · Memo" },
   description: "Gentle check-ins for Mum, and a quiet word to you when it matters.",
-  applicationName: "Hearth",
-  appleWebApp: { capable: true, title: "Hearth", statusBarStyle: "default" },
+  applicationName: "Memo",
+  appleWebApp: { capable: true, title: "Memo", statusBarStyle: "default" },
   icons: {
     icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }],
     apple: "/icons/apple-touch-icon.png",

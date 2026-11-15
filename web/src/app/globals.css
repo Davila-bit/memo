@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Hearth design tokens (docs/02-PRODUCT-SPEC.md §6).
+ * Memo design tokens (docs/02-PRODUCT-SPEC.md §6).
  * The spec colours (sage, amber, coral, sky) are used for fills, rings and icons (>= 3:1 against
  * paper/surface). Text uses the darker *-ink variants, which pass 4.5:1 on paper, surface and every
  * tint. Ratios are in web/scripts/contrast.py.

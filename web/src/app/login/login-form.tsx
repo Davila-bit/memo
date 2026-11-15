@@ -37,7 +37,7 @@ export function LoginForm() {
           ? "That passcode didn't work. Please check it and try again."
           : err instanceof Error
             ? err.message
-            : "Couldn't reach Hearth. Please try again.",
+            : "Couldn't reach Memo. Please try again.",
       );
       setBusy(false);
       inputRef.current?.focus();
@@ -50,7 +50,7 @@ export function LoginForm() {
         Passcode
       </label>
       <p id={hintId} className="mt-1 text-sm text-muted">
-        {IS_MOCK ? "Practice mode: the passcode is hearth-demo." : "The family passcode you were given when Hearth was set up."}
+        {IS_MOCK ? "Practice mode: the passcode is hearth-demo." : "The family passcode you were given when Memo was set up."}
       </p>
       <input
         ref={inputRef}

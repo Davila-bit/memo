@@ -22,7 +22,7 @@ import { StatusBadge } from "../ui/status-badge";
 import { DeleteDialog } from "./delete-dialog";
 import { countLabel, formatDate, RELATION } from "./privacy-words";
 
-const TITLE = "What Hearth keeps, and what it never keeps.";
+const TITLE = "What Memo keeps, and what it never keeps.";
 
 export function PrivacyView() {
   const mum = useHearth((s) => s.me?.resident.family_name_for_her) ?? "Mum";
@@ -50,7 +50,7 @@ export function PrivacyView() {
       .catch((e: unknown) => {
         if (cancelled) return;
         console.warn("[privacy] load failed", e);
-        setError(e instanceof ApiError ? e.message : "Couldn't reach Hearth.");
+        setError(e instanceof ApiError ? e.message : "Couldn't reach Memo.");
       });
     return () => {
       cancelled = true;
@@ -77,7 +77,7 @@ export function PrivacyView() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={TITLE} intro="Everything on this page comes straight from Hearth's own records." />
+      <PageHeader title={TITLE} intro="Everything on this page comes straight from Memo's own records." />
 
       {counts.length > 0 ? (
         <section aria-labelledby="counts-heading" className="rounded-2xl border border-line bg-surface px-5 py-4">
@@ -135,7 +135,7 @@ export function PrivacyView() {
           <Heading id="transit-heading" icon={<Broadcast aria-hidden className="size-6 text-sky-ink" weight="duotone" />}>
             Who sees a call while it&apos;s happening
           </Heading>
-          <p className="mt-2 text-muted">Live video and sound pass through these services during the call and are not stored by Hearth.</p>
+          <p className="mt-2 text-muted">Live video and sound pass through these services during the call and are not stored by Memo.</p>
           {privacy.in_transit.length > 0 ? (
             <ul className="mt-4 flex flex-wrap gap-2">
               {privacy.in_transit.map((t) => (

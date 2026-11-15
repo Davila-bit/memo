@@ -1,4 +1,4 @@
-// In-browser fake of the Hearth API + live channel (NEXT_PUBLIC_HEARTH_MOCK=1).
+// In-browser fake of the Memo API + live channel (NEXT_PUBLIC_HEARTH_MOCK=1).
 // Believable seeded data (today + 3 earlier days) and a scripted ~9 s check-in whose ending
 // is chosen with StartCheckinRequest.mock_outcome. Nothing leaves the browser.
 import { ApiError, notifyUnauthorized } from "./api-error";

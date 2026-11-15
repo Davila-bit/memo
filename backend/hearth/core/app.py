@@ -192,7 +192,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             await res
             await store.close()
 
-    app = FastAPI(title="Hearth Home API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Memo API", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.auth = Auth(settings.passcode, settings.session_secret, settings.internal_token)
     app.state.real_calls = real_calls

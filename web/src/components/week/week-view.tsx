@@ -33,7 +33,7 @@ export function WeekView() {
       .catch((e: unknown) => {
         if (cancelled) return;
         console.warn("[week] load failed", e);
-        setError(e instanceof ApiError ? e.message : "Couldn't reach Hearth.");
+        setError(e instanceof ApiError ? e.message : "Couldn't reach Memo.");
       });
     return () => {
       cancelled = true;

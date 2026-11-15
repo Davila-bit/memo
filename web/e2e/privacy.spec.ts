@@ -7,7 +7,7 @@ test.describe("privacy", () => {
     // Sidebar on a laptop, bottom bar on a phone: click whichever is showing.
     await page.getByRole("link", { name: "Privacy", exact: true }).filter({ visible: true }).first().click();
     await expect(page).toHaveURL(/\/privacy$/);
-    await expect(page.getByRole("heading", { level: 1, name: "What Hearth keeps, and what it never keeps." })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "What Memo keeps, and what it never keeps." })).toBeVisible();
   });
 
   test("shows both lists, in-transit services, retention and consent", async ({ page }, info) => {
@@ -20,7 +20,7 @@ test.describe("privacy", () => {
     expect(await never.count()).toBeGreaterThan(0);
 
     await expect(page.getByTestId("privacy-counts")).toContainText(/\d+ check-in notes?/);
-    await expect(page.getByText("Live video and sound pass through these services during the call and are not stored by Hearth.")).toBeVisible();
+    await expect(page.getByText("Live video and sound pass through these services during the call and are not stored by Memo.")).toBeVisible();
     await expect(page.getByText(/Check-in notes are deleted after \d+ days\./)).toBeVisible();
     await expect(page.getByTestId("consent-line")).toContainText("Agreed by Margaret Ellis herself");
     await expect(page.getByText("Signed", { exact: true })).toBeVisible();

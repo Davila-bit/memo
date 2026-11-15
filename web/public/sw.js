@@ -1,4 +1,4 @@
-/* Hearth service worker: push notifications only. No offline caching of API data. */
+/* Memo service worker: push notifications only. No offline caching of API data. */
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
@@ -10,7 +10,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "Hearth";
+  const title = data.title || "Memo";
   const options = {
     body: data.body || "",
     tag: data.tag || undefined,

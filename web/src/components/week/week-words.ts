@@ -100,7 +100,7 @@ export function weekTotals(days: DayStats[]): WeekTotals {
       drinks: t.drinks + d.drinks_confirmed,
       refused: t.refused + d.drinks_refused,
       medsTaken: t.medsTaken + d.meds_confirmed,
-      // Days with no check-ins at all aren't counted as missed tablets: Hearth wasn't watching.
+      // Days with no check-ins at all aren't counted as missed tablets: Memo wasn't watching.
       medsExpected: t.medsExpected + (hasActivity(d) ? d.meds_expected : 0),
       missed: t.missed + d.checkins_missed,
     }),

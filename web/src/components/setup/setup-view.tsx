@@ -132,7 +132,7 @@ function SetupForm({ initial }: { initial: Resident }) {
         </fieldset></form>
       </Step>
       <Step number={3} title="Record her consent" done={done.includes(3)}>
-        <p className="mb-2 text-muted">Hearth keeps your setup details, cue photos and short check-in notes; call video, audio and transcripts are processed live and aren&apos;t saved by Hearth.</p>
+        <p className="mb-2 text-muted">Memo keeps your setup details, cue photos and short check-in notes; call video, audio and transcripts are processed live and aren&apos;t saved by Memo.</p>
         <Link href="/privacy" className="mb-4 inline-flex min-h-11 items-center rounded-lg text-sky-ink underline underline-offset-4">Read about privacy</Link>
         <form noValidate onSubmit={saveConsent} aria-describedby={errors["step-3"] ? "setup-step-3-error" : undefined}><fieldset disabled={busy !== null} className="space-y-4">
           <div><label htmlFor="setup-relation" className="font-semibold">Who agreed to the check-ins?</label><select id="setup-relation" className={FIELD} value={relation} onChange={(e) => { setRelation(e.target.value as Consent["relation"]); dirty(3); }}><option value="self">Herself</option><option value="healthcare_agent">Her healthcare agent</option><option value="guardian">Her guardian</option></select></div>

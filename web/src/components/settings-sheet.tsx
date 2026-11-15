@@ -126,7 +126,7 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
               Larger text
             </p>
             <p id={largeDesc} className="text-sm text-muted">
-              Makes everything in Hearth bigger on this device.
+              Makes everything in Memo bigger on this device.
             </p>
           </div>
           <button
@@ -163,11 +163,11 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
               <p className="font-medium">Notifications</p>
               <p className="text-sm text-muted">
                 {push === "on"
-                  ? "On. Hearth will tell you when something needs you."
+                  ? "On. Memo will tell you when something needs you."
                   : push === "denied"
                     ? "Blocked in your browser settings. Allow notifications for this site to turn them on."
                     : push === "unsupported"
-                      ? "This browser can't show notifications. Add Hearth to your home screen and try again."
+                      ? "This browser can't show notifications. Add Memo to your home screen and try again."
                       : `Get a quiet notification when ${mum} has a drink, and a louder one if something needs you.`}
               </p>
               {push === "off" || push === "busy" ? (

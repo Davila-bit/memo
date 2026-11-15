@@ -56,7 +56,7 @@ export function DemoClock() {
         <Clock aria-hidden className="size-4.5" weight="duotone" />
         <span className="tabular">{label}</span>
       </button>
-      <Sheet open={open} onOpenChange={setOpen} title="Demo clock" description="Moves Hearth's time so a scheduled check-in comes round on cue. Only shown for demos.">
+      <Sheet open={open} onOpenChange={setOpen} title="Demo clock" description="Moves Memo's time so a scheduled check-in comes round on cue. Only shown for demos.">
         <p className="font-serif text-5xl tabular">{label}</p>
         <p className="mt-1 text-sm text-muted">{today.next_checkin ? `Next scheduled: ${today.next_checkin.label.toLowerCase()}` : "Nothing else scheduled today."}</p>
         <div className="mt-5 grid grid-cols-2 gap-3">

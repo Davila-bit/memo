@@ -1,4 +1,4 @@
-# Hearth Home
+# Memo
 
 **The call your mum never has to answer.**
 
@@ -6,7 +6,7 @@ Emory Hacks 2026 · Healthcare track
 
 ## What it does
 
-Hearth Home is a FaceTime check-in helper for a parent with dementia living alone.
+Memo is a FaceTime check-in helper for a parent with dementia living alone.
 At drink, meal and medication times, the helper calls her auto-answering kitchen iPad,
 shows her own mug or the right pill-box slot, watches until it sees her drink, and
 tells her daughter it happened. If she refuses or does not answer, the daughter gets

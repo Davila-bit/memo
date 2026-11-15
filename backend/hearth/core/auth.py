@@ -105,7 +105,7 @@ def require_session(request: Request) -> None:
 def require_internal(request: Request) -> None:
     auth: Auth = request.app.state.auth
     if not auth.check_internal(request.headers.get("x-hearth-token")):
-        raise HTTPException(status_code=401, detail="This endpoint is for the Hearth helper only.")
+        raise HTTPException(status_code=401, detail="This endpoint is for the Memo helper only.")
 
 
 def ws_allowed(ws: WebSocket) -> bool:

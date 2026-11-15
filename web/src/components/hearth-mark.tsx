@@ -1,4 +1,4 @@
-/** The Hearth mark: a rounded house with a warm glow in the doorway. Decorative. */
+/** The Memo mark: a rounded house with a warm glow in the doorway. Decorative. */
 export function HearthMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 48 48" aria-hidden className={className}>

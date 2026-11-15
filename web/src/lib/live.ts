@@ -39,7 +39,7 @@ export async function refreshToday(): Promise<void> {
       }
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 401)) {
-        st.setLoadError(e instanceof Error ? e.message : "Couldn't reach Hearth.");
+        st.setLoadError(e instanceof Error ? e.message : "Couldn't reach Memo.");
       }
     }
   })();
