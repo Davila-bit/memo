@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowCounterClockwise, Clock, FastForward } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, Clock, FastForward, Rewind } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { demoEnabled } from "@/lib/env";
@@ -10,7 +10,7 @@ import { useHearth } from "@/lib/store";
 import { Button } from "./ui/button";
 import { Sheet } from "./ui/sheet";
 
-/** Demo clock (development or ?demo=1): shows the app's time and moves it forward. */
+/** Demo clock (development or ?demo=1): shows the app's time and moves it back or forward. */
 export function DemoClock() {
   const [enabled, setEnabled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -56,18 +56,24 @@ export function DemoClock() {
         <Clock aria-hidden className="size-4.5" weight="duotone" />
         <span className="tabular">{label}</span>
       </button>
-      <Sheet open={open} onOpenChange={setOpen} title="Demo clock" description="Moves Memo's time so a scheduled check-in comes round on cue. Only shown for demos.">
+      <Sheet open={open} onOpenChange={setOpen} title="Demo clock" description="Moves Memo's time back or forward so a scheduled check-in comes round on cue. Only shown for demos.">
         <p className="font-serif text-5xl tabular">{label}</p>
         <p className="mt-1 text-sm text-muted">{today.next_checkin ? `Next scheduled: ${today.next_checkin.label.toLowerCase()}` : "Nothing else scheduled today."}</p>
         <div className="mt-5 grid grid-cols-2 gap-3">
+          <Button variant="quiet" disabled={busy} onClick={() => run(() => api.setClock({ advance_minutes: -30 }), "Moved back 30 minutes.")}>
+            <Rewind aria-hidden className="size-5" /> −30 min
+          </Button>
           <Button variant="quiet" disabled={busy} onClick={() => run(() => api.setClock({ advance_minutes: 30 }), "Moved on 30 minutes.")}>
             <FastForward aria-hidden className="size-5" /> +30 min
+          </Button>
+          <Button variant="quiet" disabled={busy} onClick={() => run(() => api.setClock({ advance_minutes: -60 }), "Moved back an hour.")}>
+            <Rewind aria-hidden className="size-5" weight="fill" /> −1 h
           </Button>
           <Button variant="quiet" disabled={busy} onClick={() => run(() => api.setClock({ advance_minutes: 60 }), "Moved on an hour.")}>
             <FastForward aria-hidden className="size-5" weight="fill" /> +1 h
           </Button>
           <Button variant="quiet" disabled={busy} onClick={() => run(() => api.setClock({ reset: true }), "Clock is back to now.")}>
-            <ArrowCounterClockwise aria-hidden className="size-5" /> Reset
+            <ArrowCounterClockwise aria-hidden className="size-5" /> Back to now
           </Button>
           <Button
             variant="quiet"
