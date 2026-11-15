@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowClockwise, ChartBar, Drop, Pill, PhoneSlash, WifiSlash } from "@phosphor-icons/react";
+import { ArrowClockwise, ChartBar, Drop, Pill, PhoneSlash, Printer, WifiSlash } from "@phosphor-icons/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { Week } from "@/lib/contracts";
@@ -11,10 +11,11 @@ import { Skeleton } from "../ui/skeleton";
 import { StatusBadge } from "../ui/status-badge";
 import { DayTable } from "./day-table";
 import { FluidChart } from "./fluid-chart";
-import { hasActivity, sortDays, streakLine, weekHeadline, weekSub, weekTotals } from "./week-words";
+import { hasActivity, sortDays, streakLine, weekHeadline, weekRange, weekSub, weekTotals } from "./week-words";
 
 export function WeekView() {
   const mum = useHearth((s) => s.me?.resident.family_name_for_her) ?? "Mum";
+  const fullName = useHearth((s) => s.me?.resident.name);
   // Refetch when a check-in lands on Today (live channel), so the week never lags the timeline.
   const liveTick = useHearth((s) => s.today?.events.length ?? 0);
   const [week, setWeek] = useState<Week | null>(null);
@@ -55,12 +56,30 @@ export function WeekView() {
   const streak = streakLine(week.med_streak_days);
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-serif text-[2rem] leading-[1.12] font-medium tracking-tight text-balance sm:text-[2.5rem]">
-          {weekHeadline(days, mum)}
-        </h1>
-        <p className="mt-2 max-w-prose text-[1.0625rem] text-muted">{weekSub(days, week.fluid_target_ml)}</p>
+    <div className="space-y-6 print:space-y-4">
+      <div data-testid="print-header" className="hidden border-b-2 border-black pb-2 print:block">
+        <p className="font-serif text-xl font-medium">Memo: weekly check-in summary</p>
+        <p className="mt-1 flex flex-wrap justify-between gap-x-6 text-sm">
+          <span>
+            {fullName ? <strong className="font-semibold">{fullName}</strong> : null}
+            {fullName ? " · " : null}
+            {weekRange(days)}
+          </span>
+          <span>Printed {new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(new Date())}</span>
+        </p>
+      </div>
+
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="font-serif text-[2rem] leading-[1.12] font-medium tracking-tight text-balance sm:text-[2.5rem] print:text-[1.75rem]">
+            {weekHeadline(days, mum)}
+          </h1>
+          <p className="mt-2 max-w-prose text-[1.0625rem] text-muted print:mt-1 print:text-base">{weekSub(days, week.fluid_target_ml)}</p>
+        </div>
+        <Button variant="quiet" className="shrink-0 self-start print:hidden" onClick={() => window.print()}>
+          <Printer aria-hidden className="size-5" />
+          Print this week
+        </Button>
       </header>
 
       <FluidChart days={days} target={week.fluid_target_ml} />
@@ -69,7 +88,7 @@ export function WeekView() {
         <h2 id="totals-heading" className="sr-only">
           The week in totals
         </h2>
-        <dl className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+        <dl className="grid gap-3 sm:grid-cols-3 sm:gap-4 print:grid-cols-3 print:gap-2">
           <Tile icon={<Drop aria-hidden className="size-5" weight="duotone" />} term="Drinks">
             <span className="text-ink">{totals.drinks} had</span>
             {totals.refused > 0 ? <span className="text-muted"> · said no to {totals.refused}</span> : null}
@@ -100,6 +119,11 @@ export function WeekView() {
 
       <DayTable days={days} />
 
+      <p data-testid="print-footer" className="hidden border-t border-black pt-2 text-xs print:block">
+        These are observations from short video check-ins by an automated helper. Fluids are estimates of what was
+        seen, not everything she drank. This is not a medical record.
+      </p>
+
       {week.source === "tiger_continuous_aggregate" ? (
         <p className="text-sm text-muted">Daily totals come from Tiger Data continuous aggregates.</p>
       ) : null}
@@ -109,7 +133,7 @@ export function WeekView() {
 
 function Tile({ icon, term, children }: { icon: ReactNode; term: string; children: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface px-4 py-3.5">
+    <div className="rounded-2xl border border-line bg-surface px-4 py-3.5 print:rounded-none print:border-black print:px-3 print:py-2">
       <dt className="flex items-center gap-2 text-[0.8125rem] font-semibold tracking-[0.06em] text-muted uppercase">
         {icon}
         {term}

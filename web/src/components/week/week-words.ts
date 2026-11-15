@@ -37,6 +37,14 @@ export function dayShort(day: string): string {
   return fmt(day, { weekday: "short", month: "short", day: "numeric" });
 }
 
+/** "November 9 to November 15, 2026" for the seven days shown. */
+export function weekRange(days: DayStats[]): string {
+  const first = days[0]?.day;
+  const last = days.at(-1)?.day;
+  if (!first || !last) return "";
+  return `${fmt(first, { month: "long", day: "numeric" })} to ${fmt(last, { month: "long", day: "numeric", year: "numeric" })}`;
+}
+
 /** Anything at all happened that day (a check-in ran, even if she said no or didn't answer). */
 export function hasActivity(d: DayStats): boolean {
   return (
