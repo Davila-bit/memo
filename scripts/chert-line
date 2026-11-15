@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Read-only status of our Chert FaceTime line: status, session health, readiness flags, current call,
+# and the last 5 calls (id, media, status, terminal reason, duration). Phone numbers are masked.
+# Usage: scripts/chert-line [N]   (N = how many recent calls, default 5)
+# Needs fnox keys CHERT_API_KEY, CHERT_PROJECT_ID (CHERT_LINE_ID optional: picks that line). Prints no secrets.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+N="${1:-5}"
+[[ $N =~ ^[0-9]+$ ]] || { echo "usage: scripts/chert-line [N]" >&2; exit 2; }
+
+ONLY=CHERT_API_KEY,CHERT_PROJECT_ID
+if fnox list 2>/dev/null | grep -q '^ *CHERT_LINE_ID '; then ONLY="$ONLY,CHERT_LINE_ID"; fi
+
+read -r -d '' REPORT <<'PY' || true
+import json, os, re
+
+def split(raw):
+    body, _, code = raw.rpartition("\n")
+    try:
+        return int(code), json.loads(body or "{}")
+    except ValueError:
+        return int(code or 0), {}
+
+def mask(s):
+    """Mask anything that looks like a phone number or email address to its last 2 characters."""
+    if s is None:
+        return "-"
+    s = str(s)
+    s = re.sub(r"\+?\d[\d\s().-]{6,}\d", lambda m: "***" + re.sub(r"\D", "", m.group())[-2:], s)
+    return re.sub(r"[\w.+-]+@[\w-]+\.[\w.]+", "***@***", s)
+
+def items(d):
+    x = d.get("data")
+    return (x.get("items") or []) if isinstance(x, dict) else (x or [])
+
+code, lines = split(os.environ["LINES"])
+if code != 200:
+    print(f"GET /lines failed: HTTP {code} {mask(json.dumps(lines.get('error', lines))[:200])}")
+    raise SystemExit(1)
+want = os.environ.get("CHERT_LINE_ID")
+ls = items(lines)
+line = next((l for l in ls if l.get("id") == want), ls[0] if ls else None)
+if not line:
+    print("no lines in this project")
+    raise SystemExit(1)
+sh = line.get("session_health") or {}
+rd = sh.get("readiness") or {}
+cap = sh.get("capabilities") or {}
+g = line.get
+print(f"line      {g('id')}  ({mask(g('phone_number') or g('masked_identity'))})")
+print(f"status    {g('status')}  availability={g('availability')}  operational={g('operational_status')}  "
+      f"routing={g('routing_status')}  activation={g('activation_intent')}")
+print(f"session   {sh.get('status')}  identity_confirmed={sh.get('identity_confirmed')}  "
+      f"heartbeat={sh.get('last_heartbeat_at')}")
+flags = {k: v for k, v in rd.items() if isinstance(v, bool)}
+print("ready     " + "  ".join(f"{k}={'yes' if v else 'NO'}" for k, v in flags.items()))
+checks = ((rd.get("automatic") or {}).get("checks")) or []
+bad = [f"{c.get('id')}:{c.get('outcome')}" for c in checks if c.get("outcome") != "passed"]
+if bad:
+    print("checks    not passed: " + ", ".join(bad))
+blk, holds = cap.get("readiness_idle_blocker") or "", cap.get("readiness_holds") or ""
+if blk or holds:
+    print(f"blocked   idle_blocker={blk or '-'}  holds={holds or '-'}")
+print(f"video     supports_video={g('supports_video')}  outbound_video_protocol={cap.get('outbound_video_protocol')}")
+print(f"current   {g('current_call_id') or '(no call)'}")
+
+code, calls = split(os.environ["CALLS"])
+print()
+if code != 200:
+    print(f"GET /calls failed: HTTP {code}")
+    raise SystemExit(0)
+print(f"{'call id':36}  {'media':5}  {'status':9}  {'terminal':28}  {'secs':>5}  {'requested (UTC)':19}  to")
+for c in items(calls):
+    m = c.get("media") or {}
+    media = "video" if m.get("video") else "audio" if m.get("audio") else "-"
+    term = "/".join(x for x in (c.get("terminal_reason"), c.get("terminal_detail")) if x) or "-"
+    dur = c.get("duration_seconds")
+    dur = "-" if dur is None else str(dur)
+    print(f"{c.get('id', '?'):36}  {media:5}  {c.get('status', '?'):9}  {term[:28]:28}  {dur:>5}  "
+          f"{str(c.get('requested_at') or '')[:19]:19}  {mask(c.get('masked_identity'))}")
+PY
+
+exec fnox exec --only "$ONLY" -- env N="$N" REPORT="$REPORT" bash -c '
+set -euo pipefail
+B=https://facetime.trychert.com/api/v1
+get() { curl -sS --max-time 15 -H "Authorization: Bearer $CHERT_API_KEY" -H "X-Chert-Project-Id: $CHERT_PROJECT_ID" \
+          -H "User-Agent: hearth-home/0.1" -w "\n%{http_code}" "$B$1"; }
+LINES=$(get /lines)
+CALLS=$(get "/calls?limit=$N")
+LINES="$LINES" CALLS="$CALLS" python3 -I -c "$REPORT"
+'
