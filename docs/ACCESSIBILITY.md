@@ -10,13 +10,15 @@ This covers **Sarah's web app** (`web/`), the part a person operates. Margaret's
 - **Rules:** WCAG 2.0, 2.1 and 2.2 level A and AA, plus axe best practices.
 - **Gate:** the e2e run fails on any serious or critical violation. Every finding of any impact, including minor and moderate ones, is listed in the table below rather than hidden.
 - **Sizes:** phone 390×844 and laptop 1280×800 (CSS px).
-- **Result:** 49 scans of 25 pages and states: **0 violations** of any impact.
+- **Result:** 53 scans of 27 pages and states: **0 violations** of any impact.
 
 | State | Page | Phone (390×844) | Laptop (1280×800) |
 |---|---|---|---|
 | ask-empty | `/ask` | ✓ No violations · 40 rules passed | ✓ No violations · 40 rules passed |
 | ask-answer | `/ask` | ✓ No violations · 41 rules passed | ✓ No violations · 41 rules passed |
 | ask-no-matches | `/ask` | ✓ No violations · 41 rules passed | ✓ No violations · 41 rules passed |
+| ask-related | `/ask` | ✓ No violations · 40 rules passed | ✓ No violations · 40 rules passed |
+| ask-voice-control | `/ask` | ✓ No violations · 40 rules passed | ✓ No violations · 40 rules passed |
 | privacy | `/privacy` | ✓ No violations · 37 rules passed | ✓ No violations · 37 rules passed |
 | privacy-delete-dialog | `/privacy` | ✓ No violations · 32 rules passed | ✓ No violations · 32 rules passed |
 | schedule | `/schedule` | ✓ No violations · 40 rules passed | ✓ No violations · 40 rules passed |
