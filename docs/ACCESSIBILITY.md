@@ -10,7 +10,7 @@ This covers **Sarah's web app** (`web/`), the part a person operates. Margaret's
 - **Rules:** WCAG 2.0, 2.1 and 2.2 level A and AA, plus axe best practices.
 - **Gate:** the e2e run fails on any serious or critical violation. Every finding of any impact, including minor and moderate ones, is listed in the table below rather than hidden.
 - **Sizes:** phone 390×844 and laptop 1280×800 (CSS px).
-- **Result:** 53 scans of 27 pages and states: **0 violations** of any impact.
+- **Result:** 59 scans of 30 pages and states: **0 violations** of any impact.
 
 | State | Page | Phone (390×844) | Laptop (1280×800) |
 |---|---|---|---|
@@ -39,6 +39,9 @@ This covers **Sarah's web app** (`web/`), the part a person operates. Margaret's
 | alert-concern | `/` | ✓ No violations · 41 rules passed | ✓ No violations · 41 rules passed |
 | settings | `/` | ✓ No violations · 31 rules passed | ✓ No violations · 31 rules passed |
 | today-large-type | `/` | ✓ No violations · 41 rules passed | ✓ No violations · 41 rules passed |
+| watch-off | `/` | ✓ No violations · 41 rules passed | ✓ No violations · 41 rules passed |
+| watch-on | `/` | ✓ No violations · 41 rules passed | ✓ No violations · 41 rules passed |
+| watch-stopped | `/` | ✓ No violations · 41 rules passed | ✓ No violations · 41 rules passed |
 | week | `/week` | ✓ No violations · 44 rules passed | ✓ No violations · 44 rules passed |
 | week-print | `/week` | not scanned | ✓ No violations · 44 rules passed |
 

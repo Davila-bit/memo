@@ -209,7 +209,7 @@ Claude Code with Claude Fable 5.2 as orchestrator and Claude Opus 5.5 subagents,
 We're a team of two, and we used AI coding agents heavily, each of us in our own Coder workspace. The agents wrote much of the code. We made the product and design decisions, reviewed what they wrote, and did every real-device test ourselves.
 
 - **Diana Avila** ([Davila-bit](https://github.com/Davila-bit)): the idea and the product: the check-in flow, the helper's voice and guardrails, the FaceTime path through Chert, the backend and the family app. Set up how we built: self-hosted Coder, the agent workflow, and the task board that fed work to Yusuf's workspace. Ran the iPad tests, the demo and the pitch.
-- **Mohammad Yusuf Shaikh** ([MYShaikh](https://github.com/MYShaikh)): the week view, the privacy page, the kitchen-iPad setup checklist, CI, and the accessibility work: the axe report (0 violations across 53 scans) and the reflow, reduced-motion, keyboard, screen-reader and high-contrast checks. Also the one-page weekly printout.
+- **Mohammad Yusuf Shaikh** ([MYShaikh](https://github.com/MYShaikh)): the week view, the privacy page, the kitchen-iPad setup checklist, CI, and the accessibility work: the axe report (0 violations across 59 scans) and the reflow, reduced-motion, keyboard, screen-reader and high-contrast checks. Also the one-page weekly printout.
 - **AI tools:** AI coding agents did much of the typing, and the helper itself runs on the Gemini API. The full AI-tool disclosure is under Credits above.
 
 ## Docs
