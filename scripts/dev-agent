@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Run the hearth-agent worker inside the Coder workspace with keys from fnox (never printed).
+#   scripts/dev-agent            # worker in dev mode (hot reload off), logs to the terminal
+#   scripts/dev-agent start      # production mode
+# Extra env passed through if set: HEARTH_INTERNAL_TOKEN, GEMINI_LIVE_MODEL, HEARTH_AGENT_NAME.
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+cd "$here"
+mode=${1:-start}
+
+keys=GEMINI_API_KEY,LIVEKIT_URL,LIVEKIT_API_KEY,LIVEKIT_API_SECRET
+pass=$keys
+for v in HEARTH_INTERNAL_TOKEN GEMINI_LIVE_MODEL HEARTH_AGENT_NAME HEARTH_LOAD_THRESHOLD; do
+  [ -n "${!v:-}" ] && pass="$pass,$v"
+done
+
+run() {
+  fnox exec --only "$keys" -- env WS_ENV="$pass" "$here/scripts/ws" \
+    "cd '$here/agent' && uv sync -q && uv run python -m hearth_agent $mode"
+}
+
+if fnox list 2>/dev/null | grep -q GEMINI_API_KEY; then
+  run
+else
+  # fnox config lives at the main checkout; resolve keys there, then come back.
+  (cd /path/to/memo && run)
+fi
