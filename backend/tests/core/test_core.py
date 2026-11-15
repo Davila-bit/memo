@@ -127,8 +127,7 @@ def test_no_answer_chain(client):
     chk = client.post("/api/checkins", json={"kind": "drink", "mock_outcome": "no_answer"}).json()
     first = wait_ended(client, chk["id"])
     assert first["outcome"] == "no_answer" and first["attempt"] == 1
-    assert client.get("/api/events", params={"kind": "missed", "limit": 5}).json() == [] or all(
-        e["source"] == "seed" for e in client.get("/api/events", params={"kind": "missed"}).json())
+    # (No "nothing missed yet" check here: the retry runs on a short timer and can finish first on a slow runner.)
     svc = client.app.state.svc
 
     def second():

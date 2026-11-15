@@ -179,11 +179,28 @@ class HerVideo(VideoInput):
                 self._note_motion(ev.frame, now)
                 if self._q.full():
                     self._q.get_nowait()
-                self._q.put_nowait(ev.frame)
+                self._q.put_nowait(self._shrink(ev.frame))
         except asyncio.CancelledError:
             pass
         finally:
             await stream.aclose()
+
+    @staticmethod
+    def _shrink(frame: rtc.VideoFrame) -> rtc.VideoFrame:
+        """Send the model less of her home: longest side at most HEARTH_FRAME_MAX_SIDE px (0 = as received).
+        In memory only; on any problem the frame goes through unchanged."""
+        try:
+            limit = int(os.environ.get("HEARTH_FRAME_MAX_SIDE", "512"))
+            longest = max(frame.width, frame.height)
+            if limit <= 0 or longest <= limit:
+                return frame
+            scale = limit / longest
+            w, h = max(2, int(frame.width * scale) // 2 * 2), max(2, int(frame.height * scale) // 2 * 2)
+            rgba = frame if frame.type == rtc.VideoBufferType.RGBA else frame.convert(rtc.VideoBufferType.RGBA)
+            img = Image.frombytes("RGBA", (rgba.width, rgba.height), bytes(rgba.data)).resize((w, h))
+            return rtc.VideoFrame(w, h, rtc.VideoBufferType.RGBA, img.tobytes())
+        except Exception:  # noqa: BLE001
+            return frame
 
     def _note_motion(self, frame: rtc.VideoFrame, now: float) -> None:
         """A 32x24 grey thumbnail, in memory only, to tell a moving scene from a still picture."""
