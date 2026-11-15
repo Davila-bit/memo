@@ -490,7 +490,7 @@ export const mockApi: HearthApi = {
     } catch {
       /* private mode */
     }
-    return delay<Me>({ name: S().resident.daughter_name, resident: S().resident });
+    return delay<Me>({ voice: true, name: S().resident.daughter_name, resident: S().resident });
   },
   async logout() {
     try {
@@ -501,7 +501,7 @@ export const mockApi: HearthApi = {
   },
   async me() {
     requireSession();
-    return delay<Me>({ name: S().resident.daughter_name, resident: S().resident });
+    return delay<Me>({ voice: true, name: S().resident.daughter_name, resident: S().resident });
   },
   async today() {
     requireSession();
@@ -642,8 +642,9 @@ export const mockApi: HearthApi = {
     S().resident = r;
     return delay(r);
   },
-  async ask({ q }) {
+  async ask({ q = "", voice_wav_b64 }) {
     requireSession();
+    if (voice_wav_b64 != null) q = "How much has she drunk today?";
     const question = q.toLowerCase();
     const words = question.split(/\W+/).filter((w) => w.length > 3);
     // Keep the practice suggestions useful without pretending this is conversational search.
@@ -671,12 +672,14 @@ export const mockApi: HearthApi = {
       return kind ? e.kind === kind : words.some((w) => `${e.summary} ${e.evidence} ${e.kind}`.toLowerCase().includes(w));
     }).sort((a, b) => b.ts.localeCompare(a.ts));
     const hits = matched.slice(0, 5).map((event) => ({ event, snippet: event.evidence || event.summary }));
-    const answer = /how much/.test(question) && kind === "drink" && hits.length
+    const answer = !kind && hits.length ? "Here are the closest moments I found."
+      : /how much/.test(question) && kind === "drink" && hits.length
       ? `The helper observed about ${matched.reduce((sum, e) => sum + (e.volume_ml_est ?? 0), 0)} ml${question.includes("today") ? " today" : " in the matching moments"}.`
       : hits.length
       ? `Here's what the helper logged: ${hits[0].event.summary.toLowerCase()} at ${formatTime(hits[0].event.ts, tz)}.`
       : "I couldn't find anything about that in the log.";
-    return delay({ q, answer, hits, engine: "fallback" as const }, 400);
+    // Exercise the related-results presentation; practice mode still uses simple word matching.
+    return delay({ q, answer, hits, engine: "fallback" as const, mode: kind ? "exact" as const : "related" as const }, 400);
   },
   async digest(day) {
     requireSession();

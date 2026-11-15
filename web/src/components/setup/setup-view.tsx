@@ -61,7 +61,7 @@ function SetupForm({ initial }: { initial: Resident }) {
       const next = await api.updateResident({ ...saved, ...patch });
       setSaved(next);
       const state = useHearth.getState();
-      state.setMe({ name: state.me?.name ?? next.daughter_name, resident: next });
+      state.setMe({ voice: state.me?.voice ?? false, name: state.me?.name ?? next.daughter_name, resident: next });
       void refreshToday();
       setDone((old) => [...old.filter((n) => n !== step), step]);
       toast("Saved.", "ok");
