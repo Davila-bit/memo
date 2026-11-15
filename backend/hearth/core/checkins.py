@@ -394,8 +394,24 @@ class CheckinService:
                 return ToolResult(ok=True)
             now = self.clock.now()
             label = await self._label_for(c)
-            evidence = self._redact(evidence) or ""
-            if confidence < LOW_CONFIDENCE:
+            reported = confidence < LOW_CONFIDENCE and evidence.startswith("Said:")
+            said = None
+            if reported:
+                # Said: is a protocol marker, not a name for Presidio to redact.
+                words = self._redact(evidence[len("Said:"):]) or ""
+                evidence = f"Said:{words}"
+                said = words.strip()
+            else:
+                evidence = self._redact(evidence) or ""
+            if reported:
+                summary = wording.reported_summary(c.kind, wording.med_period(label, now, r.timezone))
+                ev = HearthEvent(id=new_id("ev"), ts=now, resident_id=r.id, checkin_id=c.id, kind="note",
+                                 source=c.transport, confidence=confidence, evidence=evidence, said=said,
+                                 summary=summary)
+                say = "Thank her and say goodbye."
+                save = c.model_copy(update={"outcome": "reported", "summary": summary})
+                await self._save_checkin(save)
+            elif confidence < LOW_CONFIDENCE:
                 ev = HearthEvent(id=new_id("ev"), ts=now, resident_id=r.id, checkin_id=c.id, kind="note",
                                  source=c.transport, confidence=confidence, evidence=evidence,
                                  summary=f"Not sure yet about her {wording.what_for(kind, label)}")
@@ -420,7 +436,11 @@ class CheckinService:
                 save = c.model_copy(update={"outcome": "confirmed", "summary": summary})
                 await self._save_checkin(save)
         await self.add_event(ev, c.kind)
-        if save is not None:
+        if reported:
+            title = wording.reported_title(c.kind, r.family_name_for_her,
+                                           wording.med_period(label, now, r.timezone))
+            await self._notify(title, wording.REPORTED_BODY, url="/")
+        elif save is not None:
             title = {"drink": f"✓ {r.family_name_for_her} had some water",
                      "meal": f"✓ {r.family_name_for_her} had her {wording.meal_name(label, now, r.timezone)}",
                      "med": f"✓ {r.family_name_for_her} took her {wording.what_for('med', label)}"}[kind]

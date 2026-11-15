@@ -1,11 +1,11 @@
 "use client";
 
-import { CaretDown, Drop, ForkKnife, HandPalm, NotePencil, Pill, PhoneX, WarningOctagon, type Icon } from "@phosphor-icons/react";
+import { CaretDown, Drop, Ear, ForkKnife, HandPalm, NotePencil, Pill, PhoneX, WarningOctagon, type Icon } from "@phosphor-icons/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
 import type { Alert, AlertAction, EventKind, HearthEvent } from "@/lib/contracts";
 import { cn } from "@/lib/cn";
-import { confidenceWords, EVENT_LABEL, formatTime, SOURCE_LABEL, timeParts } from "@/lib/format";
+import { confidenceWords, eventLabel, formatTime, isReportedEvent, SOURCE_LABEL, timeParts } from "@/lib/format";
 
 export const EVENT_STYLE: Record<EventKind, { icon: Icon; badge: string; dot: string }> = {
   drink: { icon: Drop, badge: "bg-sky-tint text-sky-ink", dot: "bg-sky" },
@@ -16,6 +16,12 @@ export const EVENT_STYLE: Record<EventKind, { icon: Icon; badge: string; dot: st
   concern: { icon: WarningOctagon, badge: "bg-coral-tint text-coral-ink", dot: "bg-coral" },
   note: { icon: NotePencil, badge: "bg-paper text-muted border border-line", dot: "bg-line-strong" },
 };
+
+export function eventStyle(ev: HearthEvent) {
+  return isReportedEvent(ev)
+    ? { icon: Ear, badge: "bg-sky-tint text-sky-ink", dot: "bg-sky" }
+    : EVENT_STYLE[ev.kind];
+}
 
 const ACTION_TEXT: Record<AlertAction, string> = {
   retry_later: "You asked the helper to try again later",
@@ -56,7 +62,8 @@ export function Timeline({ events, handled, tz }: { events: HearthEvent[]; handl
 
 function Item({ ev, tz, last, handled }: { ev: HearthEvent; tz?: string; last: boolean; handled?: Alert }) {
   const [open, setOpen] = useState(false);
-  const s = EVENT_STYLE[ev.kind];
+  const reported = isReportedEvent(ev);
+  const s = eventStyle(ev);
   const t = timeParts(ev.ts, tz);
   const hasMore = Boolean(ev.evidence || ev.said || (ev.med_steps && ev.med_steps.length));
   const detailsId = `ev-${ev.id}-details`;
@@ -74,7 +81,7 @@ function Item({ ev, tz, last, handled }: { ev: HearthEvent; tz?: string; last: b
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.8125rem] font-semibold", s.badge)}>
             <s.icon aria-hidden className="size-4" weight="bold" />
-            {EVENT_LABEL[ev.kind]}
+            {eventLabel(ev)}
           </span>
           <span className="inline-flex items-center rounded-full border border-line px-2 py-0.5 text-[0.75rem] font-medium text-muted">
             <span className="sr-only">Source: </span>
@@ -97,7 +104,7 @@ function Item({ ev, tz, last, handled }: { ev: HearthEvent; tz?: string; last: b
               onClick={() => setOpen((o) => !o)}
               className="-ml-2 mt-1 inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-[0.9375rem] font-medium text-sky-ink hover:bg-sky-tint"
             >
-              {open ? "Hide details" : "What the helper saw"}
+              {open ? "Hide details" : reported ? "What the helper heard" : "What the helper saw"}
               <CaretDown aria-hidden className={cn("size-4 transition-transform", open && "rotate-180")} weight="bold" />
             </button>
             <div id={detailsId} hidden={!open} className="mt-1 space-y-1 rounded-xl bg-surface px-3 py-2.5 text-[0.9375rem] text-muted">

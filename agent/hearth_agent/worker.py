@@ -291,12 +291,14 @@ class Call:
 
     def clamp_unseen(self, confidence: float, evidence: str) -> tuple[float, str]:
         """No picture of her, or a picture that never moved => no visual confirmation: only what
-        she SAID may be logged, as a low-confidence note (the core stores < 0.5 as a note)."""
+        she SAID may be logged, as a low-confidence note (Said: reports complete as reported)."""
         self.clamped = None
         if self.can_see() and self.scene_moved():
             return confidence, evidence
         self.clamped = "still" if self.can_see() else "no_video"
         ev = evidence if evidence.lower().startswith("said:") else f"Said: {evidence}"
+        if self.clamped == "no_video" and ev.lower().startswith("said:"):
+            ev = "Said:" + ev[len("Said:"):]
         return min(confidence, 0.4), ev[:240]
 
     # -- outcomes
@@ -316,8 +318,10 @@ class Call:
                     "happen. Ask her once, kindly, to take a sip where you can see it. If you have already asked "
                     "twice, thank her warmly, say goodbye and call end_checkin('done').")
         if self.clamped == "no_video":
-            return ("Saved only as a note of what she said, because you cannot see her. Thank her, say goodbye "
-                    "and call end_checkin('done').")
+            if res is not None and res.ok and res.event_id:
+                self.outcome = "reported"
+                self.card.update(mode="thanks")
+            return self._say_from(res, "Thank her and say goodbye.") + " Then call end_checkin('done')."
         return self._say_from(res, "Not saved as a confirmation. Ask her once more, kindly, so you can see it.")
 
     async def flag(self, category: str, quote: str, by: Literal["model", "keyword"]) -> ToolResult | None:
@@ -435,11 +439,7 @@ class Call:
         log.info("no video %.0fs after live", NO_VIDEO_AFTER)
         if self.session:
             self.session.generate_reply(
-                instructions=(
-                    "You cannot see her camera. Kindly say: \"I can't see you just now, but I can hear you.\" "
-                    "Then carry on by voice only. You must NOT claim to have seen anything. If you log what she "
-                    "says, use confidence 0.4 or lower and start the evidence with 'Said:'."
-                )
+                instructions=prompts.no_video_instructions(self.job)
             )
 
     def spoke_since_tool(self) -> bool:
@@ -740,7 +740,7 @@ async def entrypoint(ctx: JobContext) -> None:
             log.info("session closed reason=%s error=%s", getattr(ev, "reason", None),
                      type(ev.error).__name__ if getattr(ev, "error", None) else None)
             if not call.ending:
-                by_outcome = {"confirmed": "done", "refused": "refused", "concern": "concern"}
+                by_outcome = {"confirmed": "done", "reported": "done", "refused": "refused", "concern": "concern"}
                 reason = by_outcome.get(call.outcome or "", "error")
                 if reason == "error" and "PARTICIPANT_DISCONNECTED" in str(getattr(ev, "reason", "")):
                     reason = hung_up_reason()

@@ -50,7 +50,7 @@ export async function expectAccessible(page: Page, info: TestInfo, state: string
 }
 
 /** Opens the check-in sheet and starts a practice check-in with the chosen ending. */
-export async function startCheckin(page: Page, ending: "She has it" | "She says no" | "No answer" | "Something's wrong", kind = "Water"): Promise<void> {
+export async function startCheckin(page: Page, ending: "She has it" | "She says she did" | "She says no" | "No answer" | "Something's wrong", kind = "Water"): Promise<void> {
   await page.getByRole("button", { name: "Check on her now" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();

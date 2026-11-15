@@ -28,3 +28,14 @@ test("ask a question, follow matching moments and reuse recent questions", async
   await page.getByRole("button", { name: "How much has she drunk today?", exact: true }).last().click();
   await expect(page.getByTestId("ask-hits")).toBeVisible();
 });
+
+test("Enter submits a question and Shift+Enter inserts a newline", async ({ page }) => {
+  const question = page.getByLabel("Your question");
+  await question.fill("How much has she drunk today?");
+  await question.press("Shift+Enter");
+  await expect(question).toHaveValue("How much has she drunk today?\n");
+  await expect(page.getByText("From the log", { exact: true })).toHaveCount(0);
+  await question.press("Enter");
+  await expect(page.getByText("The helper observed about 640 ml today.")).toBeVisible();
+  await expect(question).toHaveValue("How much has she drunk today?\n");
+});

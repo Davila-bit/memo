@@ -92,6 +92,45 @@ test.describe("today", () => {
     await expect(page.getByTestId("timeline").getByRole("listitem").first()).toContainText("You asked the helper to try again later");
   });
 
+  test("spoken report shows Said so without adding observed water or an alert", async ({ page }, info) => {
+    await startCheckin(page, "She says she did");
+    const card = page.getByTestId("live-checkin");
+    await expect(card).toHaveAttribute("data-status", "ended");
+    await expect(card).toHaveAttribute("data-outcome", "reported");
+    await expect(card.getByRole("heading", { name: /Mum says she's had her water/ })).toBeVisible();
+    await expect(card).toContainText("The helper heard her say so but couldn't see her on this call.");
+    await expect(card).toContainText("Said so");
+    await expect(card).not.toContainText("What the helper saw");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("640 ml today");
+    await expect(page.getByRole("region", { name: "Needs you" })).toHaveCount(0);
+    const item = page.getByTestId("timeline").getByRole("listitem").first();
+    await expect(item).toContainText("Said so");
+    await expect(item).toContainText("Said she had some water.");
+    await item.getByRole("button", { name: "What the helper heard" }).click();
+    await expect(item).toContainText("I've had my water, thank you");
+    await expect(item).not.toContainText("Seen clearly");
+    await expectAccessible(page, info, "result-reported");
+  });
+
+  test("notification alert link focuses the card when it arrives, once", async ({ page }) => {
+    // Set the URL before an alert exists, so rendering the alert must trigger focus.
+    await page.evaluate(() => window.history.pushState(null, "", "/?alert=not-here"));
+    await startCheckin(page, "She says no");
+    const alert = page.getByTestId("alert-refused");
+    await expect(alert).toBeVisible();
+    const target = await alert.getAttribute("id");
+    expect(target).toBeTruthy();
+    await page.evaluate((id) => window.history.pushState(null, "", `/?alert=${id.slice("alert-".length)}`), target!);
+    await expect(alert).toBeFocused();
+    await expect(alert).toBeInViewport();
+    const button = page.getByRole("button", { name: "Check on her now" });
+    await expect(button).toBeEnabled();
+    await button.focus();
+    // A poll/store refresh must not pull focus back to the notification.
+    await page.waitForTimeout(1600);
+    await expect(button).toBeFocused();
+  });
+
   test("no answer shows the amber alert", async ({ page }, info) => {
     await startCheckin(page, "No answer");
     const alert = page.getByTestId("alert-no_answer");

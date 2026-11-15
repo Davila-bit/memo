@@ -1,7 +1,9 @@
 "use client";
 
 import { ArrowClockwise, NotePencil, PhoneCall, WifiSlash } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import type { Alert } from "@/lib/contracts";
 import { formatDay, isActive } from "@/lib/format";
 import { refreshToday } from "@/lib/live";
 import { useHearth } from "@/lib/store";
@@ -43,6 +45,7 @@ export function TodayView() {
 
   return (
     <div className="space-y-6">
+      <Suspense fallback={null}><AlertFocus alerts={today.open_alerts} /></Suspense>
       {loadError ? (
         <div role="status" className="flex items-center gap-3 rounded-2xl border border-amber-fill/60 bg-amber-tint px-4 py-3 text-[0.9375rem]">
           <WifiSlash aria-hidden className="size-5 shrink-0 text-amber-ink" weight="bold" />
@@ -100,6 +103,25 @@ export function TodayView() {
       <AddNoteSheet open={note} onOpenChange={setNote} />
     </div>
   );
+}
+
+/** A notification can arrive before Today has fetched its alert cards. Focus once it exists. */
+function AlertFocus({ alerts }: { alerts: Alert[] }) {
+  const alertId = useSearchParams().get("alert");
+  const focused = useRef<string | null>(null);
+  useEffect(() => {
+    if (!alertId) {
+      focused.current = null;
+      return;
+    }
+    if (focused.current === alertId || !alerts.some((a) => a.id === alertId)) return;
+    const card = document.getElementById(`alert-${alertId}`);
+    if (!card) return;
+    focused.current = alertId;
+    card.scrollIntoView({ block: "center" });
+    card.focus({ preventScroll: true });
+  }, [alertId, alerts]);
+  return null;
 }
 
 function TodaySkeleton() {

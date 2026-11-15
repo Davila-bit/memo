@@ -30,6 +30,7 @@ CheckinStatus = Literal[
 
 CheckinOutcome = Literal[
     "confirmed",  # observed taking (drink / meal / med)
+    "reported",   # she said she did it; not seen
     "refused",    # she declined or did not do it after two kind asks
     "no_answer",  # nobody answered / no face within 60 s
     "concern",    # safety concern flagged; daughter alerted urgently
@@ -191,7 +192,7 @@ class StartCheckinRequest(Model):
     kind: CheckinKind = "drink"
     transport: Transport | None = None  # None = server default (HEARTH_TRANSPORT)
     cue_id: str | None = None
-    mock_outcome: CheckinOutcome | None = None  # mock transport only: which ending to play
+    mock_outcome: CheckinOutcome | None = None  # mock only: confirmed/reported/refused/no_answer/concern/error
 
 
 class AlertActionRequest(Model):

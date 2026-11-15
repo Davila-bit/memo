@@ -11,12 +11,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "dev"))
 
-from hearth_contracts import ToolConfirmDrink, ToolFlagConcern, ToolReportRefusal  # noqa: E402
+from hearth_contracts import ToolConfirmDrink, ToolFlagConcern, ToolReportRefusal, ToolResult  # noqa: E402
 
 from hearth_agent.api import HearthApi  # noqa: E402
 from hearth_agent.budget import BudgetTimer  # noqa: E402
 from hearth_agent.cuecard import CardState, CueCard, H, W, render  # noqa: E402
-from hearth_agent.prompts import instructions, opening_line  # noqa: E402
+from hearth_agent.prompts import instructions, no_video_instructions, opening_line  # noqa: E402
 from hearth_agent.safety import match_concern  # noqa: E402
 from hearth_agent.worker import is_live, parse_job  # noqa: E402
 
@@ -93,7 +93,7 @@ async def test_tool_client_flow(client: httpx.AsyncClient) -> None:
     a = HearthApi("http://stub", "c9", token="dev-internal", client=client)
     assert (await a.status("connected")).ok
     await a.caption("helper", "Hello Margaret")
-    low = await a.confirm_drink(ToolConfirmDrink(amount="sip", confidence=0.3, evidence="Said: drinking"))
+    low = await a.confirm_drink(ToolConfirmDrink(amount="sip", confidence=0.3, evidence="maybe drinking"))
     assert low and low.say  # low confidence -> stored as note, agent asked to check again
     ok = await a.confirm_drink(ToolConfirmDrink(amount="most", confidence=0.9, evidence="held mug, drank"))
     assert ok and ok.ok and not ok.say
@@ -106,6 +106,18 @@ async def test_tool_client_flow(client: httpx.AsyncClient) -> None:
     calls = [e["call"] for e in stub_api.LOG]
     assert calls == ["status", "caption", "confirm_drink", "confirm_drink", "report_refusal", "flag_concern", "end"]
     assert all("text" not in e and "evidence" not in e for e in stub_api.LOG)  # sizes only
+
+
+async def test_tool_client_report_reply_and_end(client: httpx.AsyncClient) -> None:
+    a = HearthApi("http://stub", "c_report", token="dev-internal", client=client)
+    c = _call(None)
+    confidence, evidence = c.clamp_unseen(0.9, "Said: I've had my water")
+    result = await a.confirm_drink(ToolConfirmDrink(amount="some", confidence=confidence, evidence=evidence))
+    text = await c.confirmed(result, confidence)
+    assert text == "Thank her and say goodbye. Then call end_checkin('done')."
+    assert (await a.end("done")).ok
+    checkin = await a.get_checkin()
+    assert checkin and checkin.status == "ended" and checkin.outcome == "reported"
 
 
 async def test_tool_client_bad_token_degrades(client: httpx.AsyncClient) -> None:
@@ -243,6 +255,60 @@ def test_visual_confirmation_needs_moving_video(video, ok: bool) -> None:
         assert conf == 0.95 and ev == "held up blue mug, two drinks" and c.clamped is None
     else:
         assert conf <= 0.4 and ev.startswith("Said:") and c.clamped in ("still", "no_video")
+
+
+@pytest.mark.parametrize("kind,task", [("drink", "have her drink"), ("meal", "have her meal"),
+                                      ("med", "take her tablets")])
+async def test_no_video_check_delivers_explicit_report_instructions(monkeypatch, kind, task) -> None:
+    import hearth_agent.worker as worker
+
+    monkeypatch.setattr(worker, "NO_VIDEO_AFTER", 0)  # don't wait or start a model session
+    c = _call(None)
+    c.job = c.job.model_copy(update={"kind": kind})
+    c.session = _FakeSession()
+    await c._video_check()
+    assert c.session.said == [no_video_instructions(c.job)]
+    text = c.session.said[0]
+    assert 'Say once: "I can\'t see you just now, but I can hear you."' in text
+    assert task in text and "tell you when she has" in text and "wait for her answer" in text
+    assert f"confirm_{kind}(" in text and "confidence=0.4" in text
+    assert "`Said:` followed by a short gist of her words" in text
+    assert 'On the tool reply, thank her, say goodbye and call end_checkin("done")' in text
+    assert "report_refusal" in text and "never give medical advice or change doses" in text
+    if kind == "med":
+        assert "steps_seen=[]" in text
+
+
+async def test_video_check_leaves_visual_task_alone(monkeypatch) -> None:
+    import hearth_agent.worker as worker
+
+    monkeypatch.setattr(worker, "NO_VIDEO_AFTER", 0)
+    c = _call(_FakeVideo(True, 6))
+    c.video.frames_sent = 10
+    c.session = _FakeSession()
+    await c._video_check()
+    assert c.session.said == []
+
+
+@pytest.mark.parametrize("confidence,evidence,expected", [
+    (0.9, "I've had my water", "Said: I've had my water"),
+    (0.4, "Said: I've eaten", "Said: I've eaten"),
+    (0.2, "said: I've taken my tablets", "Said: I've taken my tablets"),
+])
+async def test_no_video_cap_and_saved_report_reply(confidence, evidence, expected) -> None:
+    c = _call(None)
+    conf, ev = c.clamp_unseen(confidence, evidence)
+    assert conf == min(confidence, 0.4) and ev == expected and c.clamped == "no_video"
+    text = await c.confirmed(ToolResult(ok=True, event_id="ev_report", say="Thank her and say goodbye."), conf)
+    assert c.outcome == "reported" and c.card.state.mode == "thanks"
+    assert text == "Thank her and say goodbye. Then call end_checkin('done')."
+
+
+async def test_no_video_unsaved_report_does_not_claim_saved() -> None:
+    c = _call(None)
+    conf, _ = c.clamp_unseen(0.9, "Said: I've had water")
+    text = await c.confirmed(None, conf)
+    assert c.outcome is None and "could not be saved" in text and "end_checkin('done')" in text
 
 
 # ------------------------------------------------------------------ captions: sentence start + paging

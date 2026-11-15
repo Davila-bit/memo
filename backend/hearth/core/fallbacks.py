@@ -117,10 +117,30 @@ class MockCallService:
         await cb.caption(cid, AgentCaption(speaker="helper",
                                            text=f"Hello {name}, it's Sarah's helper. I'm an assistant."))
         await self._sleep_until(t0, 6)
-        await cb.caption(cid, AgentCaption(speaker="helper", text=f"Time for {what}. Could you show me {cue}?"))
+        if ending == "reported":
+            await cb.caption(cid, AgentCaption(speaker="helper",
+                                               text="I can't see you just now, but I can hear you."))
+            await cb.caption(cid, AgentCaption(speaker="helper",
+                                               text=f"Please have {what} and tell me when you have."))
+        else:
+            await cb.caption(cid, AgentCaption(speaker="helper", text=f"Time for {what}. Could you show me {cue}?"))
         await self._sleep_until(t0, 7.5)
 
-        if ending == "refused":
+        if ending == "reported":
+            said = {"drink": "I've had my water, thank you", "meal": "I've eaten, thank you",
+                    "med": "I've taken my tablets, thank you"}[checkin.kind]
+            await cb.caption(cid, AgentCaption(speaker="her", text=said))
+            await self._sleep_until(t0, 9)
+            report = {"confidence": 0.4, "evidence": f"Said: {said}"}
+            if checkin.kind == "drink":
+                await cb.confirm_drink(cid, ToolConfirmDrink(amount="some", **report))
+            elif checkin.kind == "meal":
+                await cb.confirm_meal(cid, ToolConfirmMeal(amount="some", **report))
+            else:
+                await cb.confirm_med(cid, ToolConfirmMed(steps_seen=[], **report))
+            await cb.caption(cid, AgentCaption(speaker="helper", text=f"Thank you, {name}. Goodbye for now."))
+            await cb.end_checkin(cid, ToolEndCheckin(reason="done"))
+        elif ending == "refused":
             await cb.caption(cid, AgentCaption(speaker="her", text="Not now, love. I'm not thirsty, I had tea."))
             await self._sleep_until(t0, 9)
             await cb.report_refusal(cid, ToolReportRefusal(said="not thirsty, had tea", asked_times=2))

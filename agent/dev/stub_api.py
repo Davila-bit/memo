@@ -83,6 +83,10 @@ def _confirm(cid: str, name: str, body: BaseModel) -> ToolResult:
     conf = body.confidence  # type: ignore[attr-defined]
     if conf < 0.5:
         _rec(cid, name, stored_as="note", **_sizes(body, "evidence"))
+        if body.evidence.startswith("Said:"):  # type: ignore[attr-defined]
+            if not _outcome(cid, "reported"):
+                return ToolResult(ok=True)
+            return ToolResult(ok=True, event_id="note-1", say="Thank her and say goodbye.")
         return ToolResult(ok=True, event_id="note-1", say="I'm not quite sure I saw that. Could you ask her once more, kindly?")
     new = _outcome(cid, "confirmed")
     _rec(cid, name, stored_as="confirmed" if new else "ignored(outcome set)", **_sizes(body, "evidence"))

@@ -53,6 +53,8 @@ export function AlertCard({ alert }: { alert: Alert }) {
   const titleId = `alert-${alert.id}-title`;
   return (
     <motion.div
+      id={`alert-${alert.id}`}
+      tabIndex={-1}
       layout={!reduce}
       initial={reduce ? false : { opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
