@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Run the Hearth API inside the Coder workspace, with keys from fnox when present.
+#   scripts/dev-api                 # port $PORT (default 8000)
+#   PORT=8101 scripts/dev-api --reload
+#   scripts/dev-api --no-keys       # memory store, mock everything
+# Values never touch disk or this terminal: fnox injects them, scripts/ws passes them by name.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+ROOT=$PWD
+PORT=${PORT:-8000}
+reload=""
+use_keys=1
+for a in "$@"; do
+  case "$a" in
+    --reload) reload="--reload --reload-dir hearth --reload-dir ../contracts" ;;
+    --no-keys) use_keys=0 ;;
+    -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
+    *) echo "dev-api: unknown option $a" >&2; exit 2 ;;
+  esac
+done
+
+# Secrets (contracts/API.md §3) that fnox may hold.
+SECRETS=(HEARTH_PASSCODE HEARTH_SESSION_SECRET HEARTH_INTERNAL_TOKEN TIGER_DATABASE_URL
+  LIVEKIT_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET
+  CHERT_API_KEY CHERT_PROJECT_ID CHERT_LINE_ID CHERT_IPAD_NUMBER
+  GEMINI_API_KEY TYPESENSE_HOST TYPESENSE_API_KEY NTFY_TOPIC
+  VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY VAPID_SUBJECT)
+# Plain settings passed through when set in this shell.
+PLAIN=(HEARTH_TRANSPORT HEARTH_API_BASE HEARTH_CORS_ORIGINS HEARTH_RETRY_SECONDS HEARTH_SCHEDULER
+  HEARTH_MOCK_SCALE HEARTH_MEDIA_DIR HEARTH_KIOSK_DEVICE GEMINI_LIVE_MODEL GEMINI_TEXT_MODEL NTFY_URL)
+
+found=()
+if [ "$use_keys" = 1 ] && command -v fnox >/dev/null 2>&1; then
+  listing=$(fnox list 2>/dev/null || true)
+  for n in "${SECRETS[@]}"; do
+    if grep -qE "^[[:space:]]*$n[[:space:]]" <<<"$listing"; then found+=("$n"); fi
+  done
+fi
+plain=()
+for n in "${PLAIN[@]}"; do
+  if [ -n "${!n:-}" ]; then plain+=("$n"); fi
+done
+export PORT
+
+all=(PORT "${found[@]}" "${plain[@]}")
+names=$(IFS=,; echo "${all[*]}")
+echo "dev-api: port $PORT; keys from fnox: ${found[*]:-none}" >&2
+
+CMD="cd backend && uv sync -q && exec uv run uvicorn hearth.core.app:create_app --factory --host 0.0.0.0 --port \$PORT --proxy-headers $reload"
+if [ ${#found[@]} -gt 0 ]; then
+  only=$(IFS=,; echo "${found[*]}")
+  exec fnox exec --only "$only" -- env WS_ENV="$names" "$ROOT/scripts/ws" "$CMD"
+fi
+WS_ENV="$names" exec "$ROOT/scripts/ws" "$CMD"
