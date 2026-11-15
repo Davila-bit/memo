@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Run a command inside the running Hearth Coder workspace container, at the same cwd.
+#   scripts/ws 'pnpm install && pnpm test'
+#   WS_ENV="GEMINI_API_KEY,CHERT_API_KEY" scripts/ws 'uv run pytest'   # pass env vars by name
+# Falls back to a throwaway hearth-dev:latest container if the workspace isn't running.
+set -euo pipefail
+
+REPO=/path/to/memo
+IMAGE=hearth-dev:latest
+WS_NAME=${WS_NAME:-hearth}
+
+[ $# -gt 0 ] || { echo "usage: scripts/ws <cmd...>" >&2; exit 2; }
+CMD="$*"
+
+workdir=$PWD
+case "$workdir/" in
+  "$REPO"/*) ;;
+  *) echo "ws: warning: $workdir is outside $REPO; using $REPO" >&2; workdir=$REPO ;;
+esac
+
+env_args=()
+if [ -n "${WS_ENV:-}" ]; then
+  IFS=',' read -ra names <<<"$WS_ENV"
+  for n in "${names[@]}"; do
+    n=${n//[[:space:]]/}
+    [ -n "$n" ] && env_args+=(-e "$n")
+  done
+fi
+
+tty_args=(-i)
+[ -t 0 ] && [ -t 1 ] && tty_args=(-it)
+
+container=${WS_CONTAINER:-$(docker ps -q \
+  --filter label=hearth.workspace=true \
+  --filter "label=coder.workspace_name=$WS_NAME" | head -1)}
+
+if [ -n "$container" ]; then
+  exec docker exec "${tty_args[@]}" -u coder -w "$workdir" "${env_args[@]}" "$container" bash -lc "$CMD"
+fi
+
+echo "ws: warning: workspace container '$WS_NAME' is not running; using a throwaway $IMAGE container" >&2
+exec docker run --rm "${tty_args[@]}" -u 1000:1000 \
+  -v "$REPO:$REPO" -w "$workdir" "${env_args[@]}" \
+  "$IMAGE" bash -lc "$CMD"
