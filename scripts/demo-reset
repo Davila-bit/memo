@@ -19,4 +19,4 @@ curl -sf -b "$jar" -H 'content-type: application/json' -d "$body" "$API/api/demo
 curl -sf -b "$jar" -X POST "$API/api/demo/reset" | python3 -c '
 import sys, json
 t = json.load(sys.stdin)
-print(f"demo-reset: now {t[\"now\"][:16]}Z, {t[\"fluid_ml\"]} of {t[\"fluid_target_ml\"]} ml, {len(t[\"events\"])} events today, {len(t[\"open_alerts\"])} open alerts")'
+print("demo-reset: now", t["now"][:16] + "Z,", t["fluid_ml"], "of", t["fluid_target_ml"], "ml,", len(t["events"]), "events today,", len(t["open_alerts"]), "open alerts")'
