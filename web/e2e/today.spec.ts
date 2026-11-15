@@ -73,7 +73,7 @@ test.describe("today", () => {
     const first = page.getByTestId("timeline").getByRole("listitem").first();
     await expect(first).toContainText("Mum drank most of a glass");
     await first.getByRole("button", { name: "What the helper saw" }).click();
-    await expect(first).toContainText("Held up the blue mug");
+    await expect(first).toContainText("Held up her mug");
     await card.getByRole("button", { name: "Done" }).click();
     await expect(card).toBeHidden();
   });

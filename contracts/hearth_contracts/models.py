@@ -99,7 +99,7 @@ class Cue(Model):
 
     id: str
     kind: CheckinKind
-    title: str  # "Your blue mug"
+    title: str  # "Your mug"
     line: str  # one very large line on the card: "Time for some water, Margaret"
     image_url: str | None = None  # served by the API under /media/cues/...; a family photo of the object
     slot_label: str | None = None  # meds only: the day's compartment, "TUE"
@@ -150,7 +150,7 @@ class HearthEvent(Model):
     source: EventSource
     confidence: Confidence = 1.0
     summary: str  # human sentence for the timeline: "Drank most of a glass of water"
-    evidence: str = ""  # short, PII-redacted: "Held the blue mug up, drank twice, mug lower after"
+    evidence: str = ""  # short, PII-redacted: "Held the mug up, drank twice, mug lower after"
     amount: Amount | None = None  # drink / meal
     volume_ml_est: int | None = None  # drink only; derived from amount (sip 30, some 80, most 180, all 240)
     med_steps: list[MedStep] | None = None  # med only: the steps that were seen

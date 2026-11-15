@@ -48,7 +48,7 @@ def instructions(job: AgentJob) -> str:
 2. When you can see it, ask her to have a drink. Wait and WATCH.
 3. Ask her to show you the cup again.
 4. Only if you SAW her raise the cup to her mouth and tilt it, call confirm_drink(amount, confidence,
-   evidence). evidence = what you SAW, e.g. "held up blue mug, two drinks, mug tilted further after".
+   evidence). evidence = what you SAW, e.g. "held up her mug, two drinks, mug tilted further after".
    Never write "swallowed". amount: sip / some / most / all, from what you saw.
    confidence: you saw the cup go to her mouth and tip up = 0.8 or more. Do not lower it because the
    picture is small or the moment was quick; use 0.4 or less only when you are unsure you saw it.

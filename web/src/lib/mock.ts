@@ -132,7 +132,7 @@ function seed(): State {
     },
   };
   const cues: Cue[] = [
-    { id: "cue_mug", kind: "drink", title: "Her blue mug", line: "Margaret, let's have some water.", image_url: null, slot_label: null },
+    { id: "cue_mug", kind: "drink", title: "Her mug", line: "Margaret, let's have some water.", image_url: null, slot_label: null },
     { id: "cue_plate", kind: "meal", title: "Her lunch plate", line: "Shall we have a bite to eat?", image_url: null, slot_label: null },
     { id: "cue_pills", kind: "med", title: "Pill box", line: "Time for your tablets.", image_url: null, slot_label: ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date().getDay()] },
   ];
@@ -165,7 +165,7 @@ function seed(): State {
   for (let d = -3; d <= -1; d++) {
     events.push(
       ev(at(d, "08:04", base), "med", "Mum took her morning tablets", "Opened the morning slot, tablet in hand, sip of water, showed the slot empty", { med_steps: allSteps, confidence: 0.9 }),
-      ev(at(d, "08:07", base), "drink", "Mum drank a full cup of tea", "Held up the blue mug, drank, showed it nearly empty", { amount: "all", volume_ml_est: 240, confidence: 0.91 }),
+      ev(at(d, "08:07", base), "drink", "Mum drank a full cup of tea", "Held up her mug, drank, showed it nearly empty", { amount: "all", volume_ml_est: 240, confidence: 0.91 }),
       ev(at(d, "08:41", base), "meal", "Mum ate most of her porridge", "Showed her bowl, ate several spoonfuls", { amount: "most", confidence: 0.82 }),
       ev(at(d, "10:33", base), "drink", "Mum drank most of a glass of water", "Showed the glass, drank twice, showed it again", { amount: "most", volume_ml_est: 180, confidence: 0.86 }),
       ev(at(d, "12:34", base), "meal", "Mum had some of her sandwich", "Showed her plate, ate a few bites", { amount: "some", confidence: 0.71 }),
@@ -173,7 +173,7 @@ function seed(): State {
     if (d === -2) {
       events.push(ev(at(d, "15:31", base), "missed", "Mum didn't answer her 3:30 check-in", "No answer after two tries", { confidence: 1 }));
     } else {
-      events.push(ev(at(d, "15:32", base), "drink", "Mum drank most of a glass of water", "Held up the blue mug, drank twice", { amount: "most", volume_ml_est: 180, confidence: 0.84 }));
+      events.push(ev(at(d, "15:32", base), "drink", "Mum drank most of a glass of water", "Held up her mug, drank twice", { amount: "most", volume_ml_est: 180, confidence: 0.84 }));
     }
     if (d === -1) {
       events.push(
@@ -190,7 +190,7 @@ function seed(): State {
   // Today, up to 2:35 pm: 640 ml so far.
   events.push(
     ev(at(0, "08:04", base), "med", "Mum took her morning tablets", "Opened the morning slot, tablet in hand, sip of water, showed the slot empty", { med_steps: allSteps, confidence: 0.9 }),
-    ev(at(0, "08:06", base), "drink", "Mum drank a full cup of tea", "Held up the blue mug, drank, showed it nearly empty", { amount: "all", volume_ml_est: 240, confidence: 0.92 }),
+    ev(at(0, "08:06", base), "drink", "Mum drank a full cup of tea", "Held up her mug, drank, showed it nearly empty", { amount: "all", volume_ml_est: 240, confidence: 0.92 }),
     ev(at(0, "08:40", base), "meal", "Mum ate most of her porridge", "Showed her bowl, ate several spoonfuls", { amount: "most", confidence: 0.83 }),
     ev(at(0, "10:32", base), "drink", "Mum drank most of a glass of water", "Showed the glass, drank twice, showed it again", { amount: "most", volume_ml_est: 180, confidence: 0.87 }),
     ev(at(0, "11:15", base), "note", "Rang her. She sounded bright and talked about the garden.", "", { source: "manual", confidence: 1 }),
@@ -219,7 +219,7 @@ function seed(): State {
     retry_at: at(0, "14:02", base).toISOString(),
   });
   events.push(
-    ev(at(0, "14:04", base), "drink", "Mum had a few sips of water", "Showed the blue mug, took two small sips", { amount: "sip", volume_ml_est: 40, confidence: 0.74 }),
+    ev(at(0, "14:04", base), "drink", "Mum had a few sips of water", "Showed her mug, took two small sips", { amount: "sip", volume_ml_est: 40, confidence: 0.74 }),
   );
 
   events.sort((a, b) => b.ts.localeCompare(a.ts));
@@ -302,7 +302,7 @@ function buildToday(): Today {
 // ---- scripted check-in
 
 const LINES: Record<CheckinKind, { ask: string; show: string; then: string }> = {
-  drink: { ask: "Could you show me your blue mug?", show: "Here it is.", then: "Lovely. Have a drink with me." },
+  drink: { ask: "Could you show me your mug?", show: "Here it is.", then: "Lovely. Have a drink with me." },
   meal: { ask: "Could you show me your plate?", show: "It's a cheese sandwich.", then: "That looks nice. Have a bite or two." },
   med: { ask: "Could you open the morning slot of your pill box?", show: "This one?", then: "That's the one. Take your tablet with a sip of water." },
 };
@@ -336,7 +336,7 @@ function finish(c: Checkin, outcome: CheckinOutcome): void {
   if (outcome === "confirmed") {
     const e =
       c.kind === "drink"
-        ? ev(ts, "drink", `${mum} drank most of a glass`, "Held up the blue mug, drank twice, showed it again", { ...base, amount: "most", volume_ml_est: AMOUNT_ML.most, confidence: 0.9 })
+        ? ev(ts, "drink", `${mum} drank most of a glass`, "Held up her mug, drank twice, showed it again", { ...base, amount: "most", volume_ml_est: AMOUNT_ML.most, confidence: 0.9 })
         : c.kind === "meal"
           ? ev(ts, "meal", `${mum} ate some of her lunch`, "Showed her plate, took several bites", { ...base, amount: "some", confidence: 0.78 })
           : ev(ts, "med", `${mum} took her tablets`, "Opened the slot, tablet to mouth, sip of water, showed it empty", {

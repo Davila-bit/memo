@@ -35,7 +35,7 @@ def resident() -> Resident:
 
 def cues() -> list[Cue]:
     return [
-        Cue(id="cue-mug", kind="drink", title="Your blue mug", line="Time for some water, Margaret"),
+        Cue(id="cue-mug", kind="drink", title="Your mug", line="Time for some water, Margaret"),
         Cue(id="cue-plate", kind="meal", title="Your lunch plate", line="Time for something to eat, Margaret"),
         Cue(id="cue-pills", kind="med", title="Your pill organiser", line="Time for your tablets, Margaret"),
     ]
@@ -60,7 +60,7 @@ def schedule() -> list[ScheduleItem]:
 
 
 DRINK_EVIDENCE = [
-    "Held the blue mug up, drank twice, mug lower after",
+    "Held the mug up, drank twice, mug lower after",
     "Showed the mug, took a few sips, showed it again",
     "Lifted the mug to her mouth, drank, set it down nearly empty",
     "Showed the mug, one long drink, mug lower after",

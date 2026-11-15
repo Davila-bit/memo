@@ -626,7 +626,7 @@ def build_agent(call: Call) -> Agent:
             Args:
                 amount: how much she drank, from what you saw: sip, some, most or all.
                 confidence: 0 to 1, how sure you are from what you SAW.
-                evidence: short description of what you saw, e.g. "held up blue mug, two drinks". Never "swallowed".
+                evidence: short description of what you saw, e.g. "held up her mug, two drinks". Never "swallowed".
             """
             c, ev = call.clamp_unseen(max(0.0, min(1.0, confidence)), evidence)
             if call.clamped is None and call.video is not None and call.video.ring is not None:

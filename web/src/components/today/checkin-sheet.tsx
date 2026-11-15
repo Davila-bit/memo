@@ -11,7 +11,7 @@ import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
 
 const KINDS: { value: CheckinKind; label: string; hint: string; icon: Icon }[] = [
-  { value: "drink", label: "Water", hint: "Shows her blue mug", icon: Drop },
+  { value: "drink", label: "Water", hint: "Shows her mug", icon: Drop },
   { value: "meal", label: "Meal", hint: "Shows her plate", icon: ForkKnife },
   { value: "med", label: "Tablets", hint: "Shows the right pill-box slot", icon: Pill },
 ];
