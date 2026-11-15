@@ -609,6 +609,8 @@ def build_agent(call: Call) -> Agent:
                 reason: done, refused, concern, distressed, no_answer, time_budget or error.
             """
             log.info("tool end_checkin reason=%s", reason)
+            if call.ending:  # the worker is already ending the call (no-answer, budget, keyword backup)
+                return "The call is ending. Say nothing more."
             said_goodbye = call.spoke_since_tool()
             call.spawn(call.finish(reason))
             if said_goodbye:
@@ -678,6 +680,8 @@ server = AgentServer(
     # worker unavailable; one call at a time is all we need.
     load_threshold=float(os.environ.get("HEARTH_LOAD_THRESHOLD", "0.95")),
     num_idle_processes=int(os.environ.get("HEARTH_IDLE_PROCESSES", "1")),
+    # health HTTP port; set HEARTH_WORKER_PORT when a second worker shares the container
+    **({"port": int(os.environ["HEARTH_WORKER_PORT"])} if os.environ.get("HEARTH_WORKER_PORT") else {}),
 )
 
 
