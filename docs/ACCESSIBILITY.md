@@ -10,7 +10,7 @@ This covers **Sarah's web app** (`web/`), the part a person operates. Margaret's
 - **Rules:** WCAG 2.0, 2.1 and 2.2 level A and AA, plus axe best practices.
 - **Gate:** the e2e run fails on any serious or critical violation. Every finding of any impact, including minor and moderate ones, is listed in the table below rather than hidden.
 - **Sizes:** phone 390×844 and laptop 1280×800 (CSS px).
-- **Result:** 48 scans of 24 pages and states: **0 violations** of any impact.
+- **Result:** 49 scans of 25 pages and states: **0 violations** of any impact.
 
 | State | Page | Phone (390×844) | Laptop (1280×800) |
 |---|---|---|---|
@@ -38,6 +38,7 @@ This covers **Sarah's web app** (`web/`), the part a person operates. Margaret's
 | settings | `/` | ✓ No violations · 31 rules passed | ✓ No violations · 31 rules passed |
 | today-large-type | `/` | ✓ No violations · 41 rules passed | ✓ No violations · 41 rules passed |
 | week | `/week` | ✓ No violations · 44 rules passed | ✓ No violations · 44 rules passed |
+| week-print | `/week` | not scanned | ✓ No violations · 44 rules passed |
 
 Automated checks find only part of what WCAG asks for. "No violations" here means axe found nothing it can test for; it does not mean the app conforms to WCAG 2.2 AA.
 

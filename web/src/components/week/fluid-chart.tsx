@@ -19,19 +19,20 @@ export function FluidChart({ days, target }: { days: DayStats[]; target: number 
   return (
     <section
       aria-labelledby="fluids-heading"
-      className="rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-[var(--shadow-card)] sm:p-7"
+      data-print-avoid-break
+      className="rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-[var(--shadow-card)] sm:p-7 print:rounded-none print:border-0 print:p-0"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id="fluids-heading" className="font-serif text-[1.5rem] leading-tight font-medium">
           Fluids per day
         </h2>
         <p className="flex items-center gap-2 text-sm text-muted">
-          <span aria-hidden className="inline-block w-6 border-t-2 border-dashed border-ink/55" />
+          <span aria-hidden className="inline-block w-6 border-t-2 border-dashed border-ink/55 print:border-black" />
           Goal {formatMl(target)} ml
         </p>
       </div>
 
-      <ol aria-label={`Fluids per day, against her ${formatMl(target)} ml goal`} data-testid="fluid-bars" className="mt-6 grid h-60 grid-cols-7 sm:h-72">
+      <ol aria-label={`Fluids per day, against her ${formatMl(target)} ml goal`} data-testid="fluid-bars" className="mt-6 grid h-60 grid-cols-7 sm:h-72 print:mt-3 print:h-48">
         {days.map((d, i) => {
           const isToday = i === last;
           const pct = (d.fluid_ml / max) * 100;
@@ -49,7 +50,7 @@ export function FluidChart({ days, target }: { days: DayStats[]; target: number 
             >
               <span className="sr-only">{said}</span>
               <div aria-hidden className="relative flex-1 border-b border-line-strong/60">
-                <div className="absolute inset-x-[-0.25rem] border-t-2 border-dashed border-ink/40 sm:inset-x-[-0.5rem]" style={{ bottom: `${goalPct}%` }} />
+                <div className="absolute inset-x-[-0.25rem] border-t-2 border-dashed border-ink/40 sm:inset-x-[-0.5rem] print:border-black" style={{ bottom: `${goalPct}%` }} />
                 <div
                   data-bar
                   className={cn(

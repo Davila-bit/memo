@@ -122,6 +122,40 @@ input:is([type="date"], [type="time"], [type="datetime-local"]):focus-within {
   }
 }
 
+/*
+ * Print (Week → "Print this week"): one clean black-and-white page for a doctor's visit.
+ * The app shell carries print:hidden; here: paper colours, no card chrome, nothing split.
+ */
+@page {
+  margin: 15mm;
+}
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  body,
+  body * {
+    color: #000 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  #main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  [data-bar] {
+    background-color: #1f2a2e !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  [data-print-avoid-break],
+  tr {
+    break-inside: avoid;
+  }
+}
+
 /* Custom radio cards: show the focus ring on the label when the hidden input has focus. */
 .ring-on-focus:has(:focus-visible) {
   outline: 3px solid var(--focus);

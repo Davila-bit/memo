@@ -13,7 +13,7 @@ export function DayTable({ days }: { days: DayStats[] }) {
   return (
     <section
       aria-labelledby="days-heading"
-      className="rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-[var(--shadow-card)] sm:p-7"
+      className="rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-[var(--shadow-card)] sm:p-7 print:rounded-none print:border-0 print:p-0"
     >
       <h2 id="days-heading" className="font-serif text-[1.5rem] leading-tight font-medium">
         Day by day
@@ -32,7 +32,7 @@ export function DayTable({ days }: { days: DayStats[] }) {
         <tbody>
           {rows.map(({ d, isToday, isYesterday }) => (
             <tr key={d.day} className="border-b border-line align-top last:border-b-0">
-              <th scope="row" className="py-3 pr-2 font-semibold">
+              <th scope="row" className="py-3 pr-2 font-semibold print:py-1.5">
                 {isToday || isYesterday ? (
                   <>
                     {isToday ? "Today" : "Yesterday"}
@@ -52,21 +52,21 @@ export function DayTable({ days }: { days: DayStats[] }) {
               </th>
               {hasActivity(d) ? (
                 <>
-                  <td className="hidden py-3 pr-2 tabular-nums sm:table-cell">
+                  <td className="hidden py-3 pr-2 tabular-nums sm:table-cell print:py-1.5">
                     {formatMl(d.fluid_ml)} ml{isToday ? <span className="text-muted"> so far</span> : null}
                   </td>
-                  <td className="py-3 pr-2">
+                  <td className="py-3 pr-2 print:py-1.5">
                     <Drinks d={d} />
                   </td>
-                  <td className="py-3 pr-2">
+                  <td className="py-3 pr-2 print:py-1.5">
                     <Tablets d={d} isToday={isToday} />
                   </td>
-                  <td className="py-3">
+                  <td className="py-3 print:py-1.5">
                     <Missed n={d.checkins_missed} />
                   </td>
                 </>
               ) : (
-                <td colSpan={4} className="py-3 text-muted">
+                <td colSpan={4} className="py-3 text-muted print:py-1.5">
                   No check-ins this day
                 </td>
               )}

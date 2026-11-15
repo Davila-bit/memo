@@ -84,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
 
       {/* Side rail (desktop) */}
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface/60 px-4 py-6 lg:flex">
+      <aside className="sticky top-0 hidden h-dvh print:hidden flex-col border-r border-line bg-surface/60 px-4 py-6 lg:flex">
         <Link href="/" className="flex items-center gap-2.5 rounded-xl px-2 py-1">
           <HearthMark className="size-8" />
           <span className="font-serif text-2xl font-medium tracking-tight">Memo</span>
@@ -105,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-h-dvh min-w-0 flex-col">
-        <header className="sticky top-0 z-30 border-b border-line/80 bg-paper/95 backdrop-blur-[2px]">
+        <header className="sticky top-0 z-30 print:hidden border-b border-line/80 bg-paper/95 backdrop-blur-[2px]">
           <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-3 sm:px-6">
             <Link href="/" className="flex items-center gap-2 lg:hidden" aria-label="Memo, Today">
               <HearthMark className="size-8" />
@@ -133,7 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Bottom tab bar (phones / tablets) */}
         <nav
           aria-label="Main"
-          className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/97 pb-[env(safe-area-inset-bottom)] lg:hidden"
+          className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/97 pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden"
         >
           <ul className="mx-auto grid max-w-xl grid-cols-5">
             {NAV.map((n) => (
