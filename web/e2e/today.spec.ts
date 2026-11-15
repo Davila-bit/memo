@@ -5,7 +5,7 @@ test.describe("sign-in", () => {
   test("wrong passcode shows a described error; right one opens Today", async ({ page }, info) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByRole("heading", { name: "Sarah’s sign-in" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Family sign-in" })).toBeVisible();
     await expectAccessible(page, info, "login");
     await shot(page, info, "01-login");
 

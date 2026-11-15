@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Memo",
     short_name: "Memo",
-    description: "Gentle check-ins for Mum, and a quiet word to you when it matters.",
+    description: "Gentle check-ins for someone you love, and a quiet word to you when it matters.",
     start_url: "/",
     scope: "/",
     display: "standalone",

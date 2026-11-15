@@ -17,7 +17,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: { default: "Memo", template: "%s · Memo" },
-  description: "Gentle check-ins for Mum, and a quiet word to you when it matters.",
+  description: "Gentle check-ins for someone you love, and a quiet word to you when it matters.",
   applicationName: "Memo",
   appleWebApp: { capable: true, title: "Memo", statusBarStyle: "default" },
   icons: {

@@ -12,8 +12,8 @@ export default function LoginPage() {
           <HearthMark className="size-11" />
           <span className="font-serif text-3xl font-medium tracking-tight">Memo</span>
         </div>
-        <h1 className="mt-8 font-serif text-[2.25rem] leading-[1.1] font-medium tracking-tight">Sarah’s sign-in</h1>
-        <p className="mt-3 text-[1.0625rem] text-muted">Gentle check-ins for Mum, and a quiet word to you when it matters.</p>
+        <h1 className="mt-8 font-serif text-[2.25rem] leading-[1.1] font-medium tracking-tight">Family sign-in</h1>
+        <p className="mt-3 text-[1.0625rem] text-muted">Gentle check-ins for someone you love, and a quiet word to you when it matters.</p>
         <LoginForm />
         <p className="mt-10 text-sm text-muted">Memo never records video or audio. The helper only watches live, during each short check-in.</p>
       </div>
