@@ -15,6 +15,8 @@ from hearth.integrations.gemini import classify_watch_frame
 
 from .checkins import CheckinService, new_id
 
+CHECK_ALERT_GAP = timedelta(minutes=5)  # at most one quiet "worth a look" alert per 5 minutes
+
 
 class WatchService:
     def __init__(self, checkins: CheckinService) -> None:
@@ -30,6 +32,7 @@ class WatchService:
         self.classify = classify_watch_frame
         # The latest frame that was checked, with when and what the check said. Memory only.
         self.last_frame: tuple[datetime, bytes] | None = None
+        self.check_alert_at: datetime | None = None
 
     def view(self) -> Watch:
         if not self.svc.settings.watch:
@@ -49,6 +52,7 @@ class WatchService:
         self.last_frame = None
         self.concerns = 0
         self.alerted = False
+        self.check_alert_at = None
         self.out_of_view_noted = False
         return self.view()
 
@@ -105,6 +109,15 @@ class WatchService:
                         and now - self.last_seen > timedelta(minutes=5) and not self.out_of_view_noted):
                     self.add_note("unusual", "Out of view for a while")
                     self.out_of_view_noted = True
+                if (self.concerns == 1 and not self.alerted
+                        and (self.check_alert_at is None or now - self.check_alert_at >= CHECK_ALERT_GAP)):
+                    # One worrying look: a quiet amber alert (no sound, no push) so it is on record.
+                    self.check_alert_at = now
+                    r = await self.svc.resident()
+                    note = " ".join((self.svc._redact(result.note) or "[removed]").split()[:10])[:200]
+                    await self.svc._save_alert(Alert(
+                        id=new_id("al"), ts=now, resident_id=r.id, kind="concern", tier="check",
+                        title="The kitchen screen saw something worth a look", detail=note))
                 if self.concerns >= 2 and not self.alerted:
                     self.alerted = True
                     r = await self.svc.resident()

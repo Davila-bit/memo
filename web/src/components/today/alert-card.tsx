@@ -96,6 +96,21 @@ export function AlertCard({ alert }: { alert: Alert }) {
             <HandHeart aria-hidden className="size-5" /> {busy === "handling" ? "Saving…" : "I'm handling it"}
           </Button>
         </div>
+      ) : alert.kind === "concern" ? (
+        <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+          <Button variant="primary" disabled={busy !== null} onClick={() => act("handling")}>
+            <HandHeart aria-hidden className="size-5" /> {busy === "handling" ? "Saving…" : "I've had a look"}
+          </Button>
+          {MUM_TEL ? (
+            <a href={`tel:${MUM_TEL}`} onClick={() => void act("i_will_call")} className={buttonClasses("quiet")}>
+              <PhoneCall aria-hidden className="size-5" /> I&apos;ll call her
+            </a>
+          ) : (
+            <Button variant="quiet" disabled={busy !== null} onClick={() => act("i_will_call")}>
+              <PhoneCall aria-hidden className="size-5" /> {busy === "i_will_call" ? "Saving…" : "I'll call her"}
+            </Button>
+          )}
+        </div>
       ) : (
         <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
           <Button variant="primary" disabled={busy !== null} onClick={() => act("retry_later", 30)}>

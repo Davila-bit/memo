@@ -90,11 +90,14 @@ def test_two_concerns_alert_exactly_once_and_reset_on_restart(make_client):
     classifier(c, "concern", "Lying on the floor")
     before = len(c.get("/api/alerts?status=all").json())
     assert frame(c).status_code == 200
-    assert len(c.get("/api/alerts?status=all").json()) == before
+    alerts = c.get("/api/alerts?status=all").json()
+    assert len(alerts) == before + 1  # one look: a quiet amber alert only
+    quiet = next(a for a in alerts if a["title"] == "The kitchen screen saw something worth a look")
+    assert quiet["tier"] == "check" and quiet["kind"] == "concern" and quiet["detail"] == "Lying on the floor"
     s.notifier.notify.assert_not_awaited()
     assert frame(c).status_code == 200
     alerts = c.get("/api/alerts?status=all").json()
-    assert len(alerts) == before + 1
+    assert len(alerts) == before + 2
     alert = next(a for a in alerts if a["title"] == "Mum may have fallen")
     assert alert["detail"] == "Lying on the floor" and alert["tier"] == "urgent"
     assert s.notifier.notify.await_count == 1
@@ -120,6 +123,23 @@ def test_ok_and_failures_break_consecutive_concerns(make_client):
         else:
             classifier(c, status, "On the floor" if status == "concern" else "At the table")
         assert frame(c).status_code == 200
+    c.app.state.svc.notifier.notify.assert_not_awaited()
+    # Three separate single looks inside 5 minutes: one quiet alert, never urgent.
+    quiet = [a for a in c.get("/api/alerts?status=all").json() if a["kind"] == "concern"]
+    assert [a["tier"] for a in quiet] == ["check"]
+
+
+def test_quiet_alert_at_most_every_five_minutes(make_client):
+    c = make_client(watch=True)
+    c.app.state.svc.notifier = AsyncMock()
+    c.post("/api/watch", json={"minutes": 30})
+    for status, advance in (("concern", 0), ("ok", 0), ("concern", 2), ("ok", 0), ("concern", 4)):
+        if advance:
+            c.post("/api/demo/clock", json={"advance_minutes": advance})
+        classifier(c, status, "On the floor" if status == "concern" else "At the table")
+        assert frame(c).status_code == 200
+    quiet = [a for a in c.get("/api/alerts?status=all").json() if a["tier"] == "check" and a["kind"] == "concern"]
+    assert len(quiet) == 2
     c.app.state.svc.notifier.notify.assert_not_awaited()
 
 

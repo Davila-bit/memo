@@ -165,6 +165,13 @@ export function resultTitle(c: Checkin, ev: HearthEvent | undefined, mum: string
 }
 
 export function alertSentence(a: Alert, tz?: string): string {
+  if (a.kind === "concern" && !a.checkin_id) {
+    // Watch mode: the kitchen screen's own check, not a call.
+    const seen = `The kitchen screen saw: ${a.detail.replace(/\.$/, "")} (${formatTime(a.ts, tz)}).`;
+    return a.tier === "urgent"
+      ? `${seen} Please check on her now.`
+      : `${seen} Seen once, so no alarm yet. Two in a row sends an urgent alert.`;
+  }
   if (a.kind === "concern") {
     const said = a.said ? `she said ‘${a.said}’ at ${formatTime(a.ts, tz)}` : `at ${formatTime(a.ts, tz)}`;
     return `The check-in noticed something unusual: ${said}. Please check on her now.`;
