@@ -7,6 +7,8 @@ Accessibility evidence: [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md) (axe scan
 
 [callyourmother.club](https://callyourmother.club) · also at [grannystalker.health](https://grannystalker.health) and [geezerhood-watch.health](https://geezerhood-watch.health)
 
+Code: [github.com/Davila-bit/memo](https://github.com/Davila-bit/memo) · Practice version in the browser: [davila-bit.github.io/memo](https://davila-bit.github.io/memo/) · Licence: [MIT](LICENSE)
+
 Emory Hacks 2026 · Healthcare track
 
 ## What it does
@@ -155,7 +157,9 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 | [livekit-client](https://github.com/livekit/client-sdk-js) (JS) | Apache-2.0 | WebRTC kiosk page |
 | [Chert FaceTime API](https://trychert.com/) | service | Bridges FaceTime calls into a LiveKit room |
 | [Google Gemini](https://ai.google.dev/) `gemini-3.8-live` | service | Voice and vision in the call (the helper hears, sees and speaks) |
-| [Google Gemini](https://ai.google.dev/) `gemini-3.5-flash-lite` | service | Daily digest, and understanding questions for "ask the log" |
+| [Google Gemini](https://ai.google.dev/) `gemini-3.5-flash-lite` | service | Daily digest, understanding questions for "ask the log", and the frame check (a second look at a few seconds of frames to confirm a sip) |
+| [Google Gemini](https://ai.google.dev/) `gemini-3.8-flash-lite-tts` | service | Test voices for the agent development harness (dev only) |
+| [Kokoro](https://github.com/hexgrad/kokoro) (Kokoro-82M) | Apache-2.0 | Local text-to-speech for the same test voices, tried first (dev only) |
 | [google-genai](https://github.com/googleapis/python-genai) | Apache-2.0 | Python client for Gemini |
 | [Tiger Cloud](https://www.tigerdata.com/) / [TimescaleDB](https://github.com/timescale/timescaledb) | Apache-2.0 (core) | Hypertable for events, continuous aggregates for weekly view, retention policy |
 | [Typesense Cloud](https://cloud.typesense.org/) | GPL-3.0 (server) | "Ask the log" natural-language search over check-in events; opt-in `ts/all-MiniLM-L12-v2` embeddings and `ts/whisper/base.en` voice transcription |
@@ -171,6 +175,7 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 | [uvicorn](https://github.com/encode/uvicorn) | BSD-3-Clause | ASGI server |
 | [pydantic](https://github.com/pydantic/pydantic) | MIT | Data validation and serialisation |
 | [httpx](https://github.com/encode/httpx) | BSD-3-Clause | Async HTTP client |
+| [aiohttp](https://github.com/aio-libs/aiohttp) | Apache-2.0 | HTTP session for the LiveKit server API client |
 | [psycopg 3](https://github.com/psycopg/psycopg) | LGPL-3.0 | PostgreSQL driver |
 | [python-multipart](https://github.com/Kludex/python-multipart) | Apache-2.0 | Multipart form parsing (photo uploads) |
 | [tzdata](https://github.com/python/tzdata) | Apache-2.0 | Timezone data |
@@ -199,6 +204,7 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 | [ruff](https://github.com/astral-sh/ruff) | MIT | Python linter and formatter |
 | [pytest](https://github.com/pytest-dev/pytest) | MIT | Python test framework |
 | [pytest-asyncio](https://github.com/pytest-dev/pytest-asyncio) | Apache-2.0 | Async test support |
+| [hatchling](https://github.com/pypa/hatch) | MIT | Build backend for the shared `hearth_contracts` package |
 
 ### AI tools used to build this
 
@@ -218,3 +224,9 @@ We're a team of two, and we used AI coding agents heavily, each of us in our own
 - [`docs/TYPESENSE-CAPACITY.md`](docs/TYPESENSE-CAPACITY.md): what we measured on the free Typesense cluster
 - [`contracts/API.md`](contracts/API.md): API, live channel, agent tools, repo layout
 - [`docs/HOW-WE-BUILT.md`](docs/HOW-WE-BUILT.md): contracts first, one workspace each, and the task cards that moved work between us
+- [`agent/README.md`](agent/README.md): the voice agent, its settings and the development harness
+- [`infra/coder/README.md`](infra/coder/README.md): the self-hosted Coder setup and workspace template
+
+## Licence
+
+MIT, see [`LICENSE`](LICENSE).

@@ -35,7 +35,8 @@ its schema was identical before/after and its document count remained 73. A fina
 read-only search using the application's normal query parameters returned
 `found=73`, one hit (`per_page=1`). That check deliberately bypassed `ensure()`.
 
-Local evidence is in `.cache/typesense-capacity/{results.json,probe.log,live-before.json,live-after.json}`.
+The raw evidence (`results.json`, `probe.log` and the before/after snapshots of the live collection) was
+kept locally under the gitignored `.cache/typesense-capacity/` and is not in this repo.
 No keys or audio were written there. Audio was generated and transmitted in memory.
 
 ## Future activation and rollback (not performed in this run)
