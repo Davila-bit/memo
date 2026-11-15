@@ -1,13 +1,185 @@
-# Hearth Home: the call your mum never has to answer
+# Hearth Home
 
-Emory Hacks 2026 · Healthcare track · Chert FaceTime · Coder for Good. A FaceTime check-in agent for
-a parent with dementia living alone: it calls her auto-answering kitchen iPad at drink, meal and
-medication times, shows her own mug or pill-box slot, sees her drink, and tells her daughter.
+**The call your mum never has to answer.**
 
-| Doc | Status | What's in it |
-|---|---|---|
+Emory Hacks 2026 · Healthcare track
+
+## What it does
+
+Hearth Home is a FaceTime check-in helper for a parent with dementia living alone.
+At drink, meal and medication times, the helper calls her auto-answering kitchen iPad,
+shows her own mug or the right pill-box slot, watches until it sees her drink, and
+tells her daughter it happened. If she refuses or does not answer, the daughter gets
+what she said and chooses what to do next.
+
+## How a check-in works
+
+1. A scheduled check-in fires (or the daughter taps "Check on her now").
+2. The helper places a FaceTime video call through Chert. The iPad auto-answers.
+3. The iPad shows a calm cue card: a photo of her own mug, plate or pill organiser, one line of large text, and live captions.
+4. The helper speaks: a short, warm, adult prompt using her preferred name, then waits.
+<!-- VERIFY: whether the helper can see the iPad camera on outbound FaceTime calls — as of 00:28 ET it receives audio only on outbound; vision may come from the kiosk transport or from an inbound call -->
+5. When it sees her drink (or hears her say so), the helper logs "observed taking" and the daughter's phone updates within seconds. If she refuses, the daughter gets her words and action choices: try again later, call her, or ask a neighbour.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph "Sarah (daughter)"
+        PWA["Phone · PWA"]
+    end
+
+    subgraph Cloud
+        WEB["Next.js web"]
+        API["FastAPI API"]
+        TIGER["Tiger Cloud · TimescaleDB"]
+        TS["Typesense Cloud"]
+        GEMINI_TEXT["Gemini 3.5 Flash Lite · digest + search"]
+        LK["LiveKit Cloud room"]
+    end
+
+    subgraph "Agent worker"
+        AGENT["livekit-agents + Gemini Live\n(voice + vision · cue-card video)"]
+    end
+
+    subgraph "Kitchen"
+        IPAD["iPad · FaceTime auto-answer"]
+        KIOSK["Kiosk page · WebRTC fallback"]
+    end
+
+    CHERT["Chert · FaceTime bridge"]
+
+    PWA -->|HTTPS / WS| WEB
+    WEB --> API
+    API --> TIGER
+    API --> TS
+    API --> GEMINI_TEXT
+    API -->|"dispatch + bridge token"| LK
+    LK <--> AGENT
+    LK <-->|WebRTC| CHERT
+    CHERT <-->|FaceTime| IPAD
+    LK <-->|WebRTC| KIOSK
+```
+
+## Run it
+
+Development happens inside **Coder workspaces**. See [`infra/coder/README.md`](infra/coder/README.md) for setup.
+
+```bash
+scripts/dev-up            # start API, web and agent worker in the Coder workspace
+scripts/dev-up --public   # same, with a cloudflared tunnel for teammate access
+scripts/dev-down          # stop everything
+```
+
+Keys are managed with `fnox`. The names are listed in [`contracts/API.md` §3](contracts/API.md). The app runs with no keys in mock mode (in-memory store, template digest, no calls).
+
+## Tests
+
+```bash
+# backend
+scripts/ws 'cd backend && uv run pytest -q'
+
+# agent
+scripts/ws 'cd agent && uv run pytest -q'
+
+# web (e2e + accessibility)
+scripts/ws 'cd web && pnpm e2e'
+```
+
+Web e2e tests use Playwright with `@axe-core/playwright`. Every test page is checked for WCAG 2.2 AA violations. Results: 0 serious or critical issues across 15 tests (mock mode).
+
+## Privacy and safety
+
+- **Not recorded.** No call video, audio or frames are written to disk or cloud storage. Only structured events and short text notes are stored.
+- **PII redaction.** Names, phone numbers and addresses are stripped from evidence text and transcripts by Presidio before storage, search indexing or digest generation.
+- **No voice cloning.** The helper identifies itself as "Sarah's helper, an assistant". It never impersonates a family member.
+- **No medical advice.** The helper never changes doses, suggests treatments or gives clinical guidance. The schedule is set by the family.
+- **Consent and deletion.** A consent record (from the person or their healthcare agent) is stored. All data can be deleted from the privacy page. Events auto-expire after 90 days (Tiger Data retention policy).
+- **The helper never dials 911.** In a concern (she says "I fell" or asks for help), the helper tells the daughter, who decides whether to call emergency services herself.
+- **Gemini free-tier disclosure.** On Google's free tier, content sent to Gemini may be used to improve Google products ([Google's terms](https://ai.google.dev/gemini-api/terms)). For the demo we use a teammate, not a real patient. A production deployment would use the paid API tier, which does not use content for training.
+- **Contacts only.** The kitchen iPad is set to accept FaceTime calls only from the daughter and the helper's line.
+
+## Accessibility
+
+- **Margaret (the parent) needs zero interaction.** The iPad auto-answers; the cue card uses one line of very large text with live captions; the helper speaks slowly, uses her preferred name, makes one request at a time, repeats once rather than rephrasing, and ends kindly if she is distressed.
+- **Sarah's app (WCAG 2.2 AA).** Status is always icon + word + colour (never colour alone). Contrast-checked ink colours against the warm paper background. Keyboard navigation throughout. Large-type mode in settings. `aria-live` regions for new events. axe-core checks on every e2e test page.
+
+## Built in Coder
+
+Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each teammate gets their own workspace (code-server in the browser, GPU, shared ports for the web app and API). Task cards in [`docs/tasks/`](docs/tasks/).
 
 ## Credits
-_(fill in as dependencies are added: required by event rules)_ LiveKit Agents · Chert FaceTime API ·
-Google Gemini (Gemini Live) · Tiger Data / TimescaleDB · Typesense · Postmark · Coder · FastAPI ·
-Next.js · Tailwind CSS. AI coding tools used: _(list them: MLH rule)_.
+
+### Frameworks, services and models
+
+| Name | Licence | What it does here |
+|---|---|---|
+| [LiveKit Agents](https://github.com/livekit/agents) | Apache-2.0 | Agent framework: connects Gemini Live to the call room |
+| [livekit-plugins-google](https://github.com/livekit/agents) | Apache-2.0 | Gemini Live integration for livekit-agents |
+| [livekit-api](https://github.com/livekit/python-sdks) (Python) | Apache-2.0 | Room and participant management from the backend |
+| [LiveKit Python SDK](https://github.com/livekit/python-sdks) (`livekit-rtc`) | Apache-2.0 | Real-time tracks in the agent worker |
+| [livekit-client](https://github.com/livekit/client-sdk-js) (JS) | Apache-2.0 | WebRTC kiosk page |
+| [Chert FaceTime API](https://trychert.com/) | service | Bridges FaceTime calls into a LiveKit room |
+| [Google Gemini](https://ai.google.dev/) `gemini-3.8-live` | service | Voice and vision in the call (the helper hears, sees and speaks) |
+| [Google Gemini](https://ai.google.dev/) `gemini-3.5-flash-lite` | service | Daily digest, question understanding, refusal classification |
+| [google-genai](https://github.com/googleapis/python-genai) | Apache-2.0 | Python client for Gemini |
+| [Tiger Cloud](https://www.tigrisdata.com/) / [TimescaleDB](https://github.com/timescale/timescaledb) | Apache-2.0 (core) | Hypertable for events, continuous aggregates for weekly view, retention policy |
+| [Typesense Cloud](https://cloud.typesense.org/) | GPL-3.0 (server) | "Ask the log" natural-language search over check-in events |
+| [typesense](https://github.com/typesense/typesense-python) (Python client) | Apache-2.0 | Python client for Typesense |
+| [Presidio Analyzer](https://github.com/microsoft/presidio) | MIT | PII detection in evidence text and transcripts |
+| [Presidio Anonymizer](https://github.com/microsoft/presidio) | MIT | PII redaction |
+| [spaCy](https://github.com/explosion/spaCy) + `en_core_web_sm` | MIT | NER model for Presidio |
+| [pywebpush](https://github.com/web-push-libs/pywebpush) | MPL-2.0 | Web Push notifications to the daughter's PWA |
+| [py-vapid](https://github.com/web-push-libs/vapid) | MPL-2.0 | VAPID key handling for Web Push |
+| [ntfy](https://ntfy.sh/) | Apache-2.0 | Urgent push notifications (works without PWA install) |
+| [FastAPI](https://github.com/fastapi/fastapi) | MIT | API framework |
+| [Starlette](https://github.com/encode/starlette) | BSD-3-Clause | ASGI toolkit (FastAPI dependency) |
+| [uvicorn](https://github.com/encode/uvicorn) | BSD-3-Clause | ASGI server |
+| [pydantic](https://github.com/pydantic/pydantic) | MIT | Data validation and serialisation |
+| [httpx](https://github.com/encode/httpx) | BSD-3-Clause | Async HTTP client |
+| [psycopg 3](https://github.com/psycopg/psycopg) | LGPL-3.0 | PostgreSQL driver |
+| [python-multipart](https://github.com/Kludex/python-multipart) | Apache-2.0 | Multipart form parsing (photo uploads) |
+| [tzdata](https://github.com/python/tzdata) | Apache-2.0 | Timezone data |
+| [Pillow](https://github.com/python-pillow/Pillow) | MIT-CMU | Cue-card image rendering in the agent |
+| [numpy](https://github.com/numpy/numpy) | BSD-3-Clause | Motion detection in the agent (dev) |
+| [Next.js](https://github.com/vercel/next.js) | MIT | Web framework (App Router) |
+| [React](https://github.com/facebook/react) | MIT | UI library |
+| [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) | MIT | Utility-first CSS |
+| [Radix UI](https://github.com/radix-ui/primitives) (`@radix-ui/react-dialog`) | MIT | Accessible dialog primitive |
+| [motion](https://github.com/motiondivision/motion) | MIT | Animation library |
+| [Phosphor Icons](https://github.com/phosphor-icons/react) (`@phosphor-icons/react`) | MIT | Icon set |
+| [zustand](https://github.com/pmndrs/zustand) | MIT | Client state management |
+| [Playwright](https://github.com/microsoft/playwright) | Apache-2.0 | End-to-end browser tests |
+| [@axe-core/playwright](https://github.com/dequelabs/axe-core-npm) | MPL-2.0 | WCAG accessibility checks in tests |
+| [sharp](https://github.com/lovell/sharp) | Apache-2.0 | Image processing (PWA icons) |
+| [Fraunces](https://github.com/undercasetype/Fraunces) | OFL-1.1 | Display typeface |
+| [Inter](https://github.com/rsms/inter) | OFL-1.1 | Body typeface |
+| [Coder OSS](https://github.com/coder/coder) | AGPL-3.0 | Self-hosted dev environment |
+| [code-server](https://github.com/coder/code-server) | MIT | VS Code in the browser |
+| [cloudflared](https://github.com/cloudflare/cloudflared) | Apache-2.0 | Quick tunnels for teammate and demo access |
+| [uv](https://github.com/astral-sh/uv) | Apache-2.0 / MIT | Python package and project manager |
+| [pnpm](https://github.com/pnpm/pnpm) | MIT | Node package manager |
+| [Docker](https://www.docker.com/) | Apache-2.0 | Container runtime (Coder, services) |
+| [ESLint](https://github.com/eslint/eslint) | MIT | JavaScript linting |
+| [TypeScript](https://github.com/microsoft/TypeScript) | Apache-2.0 | Type-checked JavaScript |
+| [ruff](https://github.com/astral-sh/ruff) | MIT | Python linter and formatter |
+| [pytest](https://github.com/pytest-dev/pytest) | MIT | Python test framework |
+| [pytest-asyncio](https://github.com/pytest-dev/pytest-asyncio) | Apache-2.0 | Async test support |
+
+### AI tools used to build this
+
+Claude Code with Claude Fable 5.2 as orchestrator and Claude Opus 5.5 subagents, OpenAI Codex CLI with gpt-6.1-sol, and Google Antigravity. The orchestrator wrote contracts and integration code; features were built by parallel workers in git worktrees; humans steered direction, tested on real devices, and reviewed and merged every change.
+
+## Team
+
+- [Davila-bit](https://github.com/Davila-bit)
+- [MYShaikh](https://github.com/MYShaikh) (Mohammad Shaikh)
+
+## Docs
+
+- [`docs/07-HEARTH-HOME.md`](docs/07-HEARTH-HOME.md) — current spec (users, loop, features, architecture, accessibility, privacy, demo)
+- [`docs/08-STACK-AND-ADDITIONS.md`](docs/08-STACK-AND-ADDITIONS.md) — final stack, safety layer, kiosk fallback, team attribution
+- [`docs/06-VALIDATION.md`](docs/06-VALIDATION.md) — how we chose the idea, alternatives, community sentiment
+- [`docs/01-RESEARCH.md`](docs/01-RESEARCH.md) — event, prizes, judges, market, clinical stats, legal
+- [`contracts/API.md`](contracts/API.md) — API, live channel, agent tools, repo layout
+- [`docs/STATE.md`](docs/STATE.md) — what is verified, what is not
