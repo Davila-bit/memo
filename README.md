@@ -182,7 +182,7 @@ We're a team of two, and we used AI coding agents heavily, each of us in our own
 
 - **Diana Avila** ([Davila-bit](https://github.com/Davila-bit)): the idea and the product: the check-in flow, the helper's voice and guardrails, the FaceTime path through Chert, the backend and the family app. Set up how we built: self-hosted Coder, the agent workflow, and the task board that fed work to Yusuf's workspace. Ran the iPad tests, the demo and the pitch.
 - **Mohammad Yusuf Shaikh** ([MYShaikh](https://github.com/MYShaikh)): the week view, the privacy page, the kitchen-iPad setup checklist, CI, and the accessibility work: the axe report (0 violations across 48 scans) and the reflow, reduced-motion and keyboard checks.
-- **AI tools:** Claude Code, OpenAI Codex and Google Antigravity (details under Credits above).
+- **AI tools:** a swarm of Claude coding agents did much of the typing, and the helper itself runs on the Gemini API. The full AI-tool disclosure is under Credits above.
 
 ## Docs
 
