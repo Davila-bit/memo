@@ -21,7 +21,7 @@ export function DayTable({ days }: { days: DayStats[] }) {
       <table data-testid="day-table" className="mt-4 w-full border-collapse text-left text-sm sm:text-[0.9375rem]">
         <caption className="sr-only">Fluids, drinks, tablets and missed check-ins for each of the last seven days, newest first.</caption>
         <thead>
-          <tr className="border-b border-line text-[0.8125rem] font-semibold tracking-[0.06em] text-muted uppercase">
+          <tr className="border-b border-line text-[0.75rem] font-semibold tracking-normal min-[360px]:text-[0.8125rem] min-[360px]:tracking-[0.06em] text-muted uppercase">
             <th scope="col" className="py-2 pr-2 font-semibold">Day</th>
             <th scope="col" className="hidden py-2 pr-2 font-semibold sm:table-cell">Fluids</th>
             <th scope="col" className="py-2 pr-2 font-semibold">Drinks</th>
@@ -82,7 +82,7 @@ function Line({ icon, children, className }: { icon: ReactNode; children: ReactN
   return (
     <span className={`flex items-start gap-1.5 ${className ?? ""}`}>
       <span className="flex h-[1.4em] items-center">{icon}</span>
-      <span className="whitespace-nowrap">{children}</span>
+      <span className="min-[360px]:whitespace-nowrap">{children}</span>
     </span>
   );
 }

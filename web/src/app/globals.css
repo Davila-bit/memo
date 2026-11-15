@@ -91,6 +91,16 @@ body {
   border-radius: 0.5rem;
 }
 
+/*
+ * Date and time fields: Tab also stops on the field's built-in calendar/clock button, and while
+ * that button has focus the field matches neither :focus nor :focus-visible, so no ring showed
+ * (WCAG 2.4.7). :focus-within covers the segments and that button.
+ */
+input:is([type="date"], [type="time"], [type="datetime-local"]):focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
 /* Custom radio cards: show the focus ring on the label when the hidden input has focus. */
 .ring-on-focus:has(:focus-visible) {
   outline: 3px solid var(--focus);
