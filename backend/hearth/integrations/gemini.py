@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from ._common import gemini_key, gemini_text_model, log, set_status
 
 _client = None
+MIN_DEADLINE_S = 10.0  # the API's smallest accepted deadline
 
 
 def _get_client():
@@ -34,11 +35,12 @@ async def generate(prompt: str, *, system: str, json_mode: bool = False, timeout
             temperature=temperature,
             max_output_tokens=400,
             response_mime_type="application/json" if json_mode else None,
-            http_options=types.HttpOptions(timeout=int(timeout_s * 1000)),
+            # Gemini refuses a server deadline under 10 s (400 INVALID_ARGUMENT), so never send less.
+            http_options=types.HttpOptions(timeout=int(max(timeout_s, MIN_DEADLINE_S) * 1000)),
         )
         resp = await asyncio.wait_for(
             _get_client().aio.models.generate_content(model=gemini_text_model(), contents=prompt, config=cfg),
-            timeout=timeout_s + 1,
+            timeout=max(timeout_s, MIN_DEADLINE_S) + 1,
         )
         set_status("gemini_text", "ok")
         return (resp.text or "").strip() or None
@@ -88,8 +90,8 @@ async def classify_watch_frame(jpeg: bytes) -> WatchClassification | None:
                           '"note": "at most 10 words"}.')],
                 config=types.GenerateContentConfig(
                     temperature=0, max_output_tokens=150, response_mime_type="application/json",
-                    http_options=types.HttpOptions(timeout=8000))),
-            timeout=8.0)
+                    http_options=types.HttpOptions(timeout=int(MIN_DEADLINE_S * 1000)))),
+            timeout=MIN_DEADLINE_S + 0.5)
         return WatchClassification.model_validate_json(response.text or "")
     except Exception:  # noqa: BLE001
         log.warning("watch classification skipped: Gemini unavailable or invalid response")
