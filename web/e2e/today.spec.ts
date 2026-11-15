@@ -36,6 +36,7 @@ test.describe("today", () => {
     await expect(page.getByTestId("timeline").getByRole("listitem").first()).toContainText("few sips");
     await expectAccessible(page, info, "today");
     await shot(page, info, "03-today");
+    await shot(page, info, "03b-today-full", true);
 
     await page.getByRole("button", { name: "Check on her now" }).click();
     await expect(page.getByRole("dialog", { name: "Check on Mum now" })).toBeVisible();
@@ -82,7 +83,6 @@ test.describe("today", () => {
     const alert = page.getByTestId("alert-refused");
     await expect(alert).toBeVisible({ timeout: 15_000 });
     await expect(alert).toContainText("I'm not thirsty, I had tea");
-    await expect(page.getByTestId("live-checkin")).toHaveAttribute("data-status", "ended");
     await expectAccessible(page, info, "alert-refused");
     await shot(page, info, "08-alert-refused");
 

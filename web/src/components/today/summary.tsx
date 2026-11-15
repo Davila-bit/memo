@@ -18,9 +18,12 @@ export function TodaySummary({ today, schedule, actions }: { today: Today; sched
           <h1 id="today-heading" className="font-serif text-[2rem] leading-[1.12] font-medium tracking-tight text-balance sm:text-[2.5rem]">
             {hydrationHeadline(today, mum)}
           </h1>
-          <p className="mt-2 text-[1.0625rem] text-muted">{hydrationSub(today)}</p>
+          <p className="mt-2 hidden text-[1.0625rem] text-muted sm:block">{hydrationSub(today)}</p>
         </div>
-        <HydrationRing ml={today.fluid_ml} target={today.fluid_target_ml} mum={mum} />
+        <div className="flex items-center gap-5">
+          <HydrationRing ml={today.fluid_ml} target={today.fluid_target_ml} mum={mum} />
+          <p className="text-[1.0625rem] text-muted sm:hidden">{hydrationSub(today)}</p>
+        </div>
       </div>
 
       <dl className="mt-6 grid gap-3 border-t border-line pt-5 sm:grid-cols-2 sm:gap-6">

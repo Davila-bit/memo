@@ -12,10 +12,10 @@ export async function signIn(page: Page): Promise<void> {
   await expect(page.getByRole("heading", { level: 1, name: /has had \d+ ml today/ })).toBeVisible();
 }
 
-/** Full-page screenshot named <project>-<state>.png under e2e/screenshots/. */
-export async function shot(page: Page, info: TestInfo, state: string): Promise<void> {
+/** Screenshot (viewport by default) named <project>-<state>.png under e2e/screenshots/. */
+export async function shot(page: Page, info: TestInfo, state: string, fullPage = false): Promise<void> {
   await page.waitForTimeout(350); // let entrance animations settle
-  await page.screenshot({ path: path.join(SHOTS, `${info.project.name}-${state}.png`), fullPage: true });
+  await page.screenshot({ path: path.join(SHOTS, `${info.project.name}-${state}.png`), fullPage });
 }
 
 export interface AxeSummary {

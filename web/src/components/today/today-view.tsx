@@ -37,7 +37,9 @@ export function TodayView() {
 
   const tz = today.resident.timezone;
   const running = isActive(checkin);
-  const showCard = checkin && (running || !dismissed);
+  // When a finished check-in raised an alert, the alert card carries the result; don't repeat it.
+  const hasAlert = !!checkin && [...today.open_alerts, ...handled].some((a) => a.checkin_id === checkin.id);
+  const showCard = checkin && (running || (!dismissed && !hasAlert));
 
   return (
     <div className="space-y-6">

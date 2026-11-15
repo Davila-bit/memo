@@ -9,7 +9,7 @@ export function HydrationRing({ ml, target, mum }: { ml: number; target: number;
   const r = 52;
   const c = 2 * Math.PI * r;
   return (
-    <div className="relative size-40 shrink-0 sm:size-44" role="img" aria-label={`${mum} has had ${Math.round(ml)} of ${target} ml today, ${Math.round(pct * 100)} percent of her goal.`}>
+    <div className="relative size-32 shrink-0 sm:size-44" role="img" aria-label={`${mum} has had ${Math.round(ml)} of ${target} ml today, ${Math.round(pct * 100)} percent of her goal.`}>
       <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden>
         <circle cx="60" cy="60" r={r} fill="none" stroke="var(--sky-tint)" strokeWidth="10" />
         <motion.circle
@@ -27,8 +27,8 @@ export function HydrationRing({ ml, target, mum }: { ml: number; target: number;
         />
       </svg>
       <div aria-hidden className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-serif text-[2.75rem] leading-none font-medium tabular">{Math.round(ml)}</span>
-        <span className="mt-1 text-sm text-muted">of {target} ml</span>
+        <span className="font-serif text-[2.25rem] sm:text-[2.75rem] leading-none font-medium tabular">{Math.round(ml)}</span>
+        <span className="mt-1 text-[0.8125rem] text-muted sm:text-sm">of {target} ml</span>
       </div>
     </div>
   );
