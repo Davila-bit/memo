@@ -132,6 +132,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                              search=integ["search"], digest=integ["digest"], redactor=integ["redactor"],
                              real_calls=real_calls, mock_calls=mock_calls)
         app.state.svc = svc
+        svc._bg(svc.reindex())
         app.state.fallback_search = KeywordSearch()
         app.state.fallback_digest = TemplateDigest()
 

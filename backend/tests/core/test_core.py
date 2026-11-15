@@ -315,3 +315,74 @@ def test_websocket_rejects_without_auth(make_client):
     c = make_client(login=False)
     with pytest.raises(WebSocketDisconnect), c.websocket_connect("/ws?ticket=bogus") as ws:
         ws.receive_json()
+
+
+def test_plugins_are_picked_up(make_client, monkeypatch):
+    import hearth.calls
+    import hearth.integrations
+    from fastapi import APIRouter
+    from hearth_contracts import KioskToken
+
+    sent: list[tuple] = []
+    started: list = []
+
+    class FakeNotifier:
+        async def notify(self, title, body, *, urgent=False, url=None, actions=None):
+            sent.append((title, body, urgent, actions))
+
+        async def alert(self, alert):
+            pass
+
+        def health(self):
+            return "ok"
+
+    class FakeCalls:
+        def health(self):
+            return {"livekit": "ok", "chert": "missing_key"}
+
+        async def start(self, checkin, job, cb):
+            started.append((checkin, job))
+            await cb.call_ringing(checkin.id)
+
+        async def end(self, checkin_id, reason):
+            pass
+
+        async def kiosk_token(self, device):
+            return KioskToken(url="wss://x", token="t", room=f"kiosk-{device}", identity=f"kiosk-{device}")
+
+    calls_router = APIRouter()
+
+    @calls_router.get("/api/calls-probe")
+    async def probe():
+        return {"ok": True}
+
+    subs_seen = []
+
+    def build_notifier(get_subscriptions):
+        subs_seen.append(get_subscriptions)
+        return FakeNotifier()
+
+    monkeypatch.setattr(hearth.calls, "build_call_service", lambda: FakeCalls(), raising=False)
+    monkeypatch.setattr(hearth.calls, "router", calls_router, raising=False)
+    monkeypatch.setattr(hearth.integrations, "build_notifier", build_notifier, raising=False)
+    c = make_client(transport_default="facetime")
+    h = c.get("/api/health").json()["integrations"]
+    assert h["livekit"] == "ok" and h["chert"] == "missing_key" and h["notifier"] == "ok" and h["search"] == "mock"
+    assert c.get("/api/calls-probe").json() == {"ok": True}
+    assert c.get("/api/kiosk/token", params={"key": TOKEN}).json()["room"] == "kiosk-kitchen"
+    chk = c.post("/api/checkins", json={"kind": "drink"}).json()
+    # FaceTime isn't healthy, so the core falls back to the kiosk on the real call service.
+    assert chk["transport"] == "kiosk" and chk["room"] == "kiosk-kitchen" and chk["status"] == "ringing"
+    _, job = started[0]
+    assert job.caller_identity_prefix == "kiosk-" and job.cue.id == "cue-mug" and job.context
+    r = internal(c, chk["id"], "confirm_drink", {"amount": "most", "confidence": 0.9, "evidence": "drank"})
+    assert r.status_code == 200
+    title, body, urgent, _ = sent[-1]
+    assert title == "✓ Mum had some water" and body.endswith(" · drank most of a glass") and not urgent
+    internal(c, chk["id"], "end", {"reason": "done"})
+    assert c.get(f"/api/checkins/{chk['id']}").json()["status"] == "ended"
+    # A mock request still uses the built-in mock even with a real call service loaded.
+    m = c.post("/api/checkins", json={"kind": "drink", "transport": "mock"}).json()
+    assert m["transport"] == "mock"
+    wait_ended(c, m["id"])
+    assert subs_seen and callable(subs_seen[0])

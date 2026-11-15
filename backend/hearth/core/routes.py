@@ -386,6 +386,7 @@ async def demo_reset(request: Request) -> Today:
         await s.cancel(active.id)
     n = await seed(s.store, s.clock.now())
     s.reset_tick()
+    s._bg(s.reindex())
     log.info("demo reset: seeded %d events", n)
     return await s.today()
 

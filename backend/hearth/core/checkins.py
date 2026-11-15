@@ -159,6 +159,18 @@ class CheckinService:
             log.warning("search index failed: %s", e)
         return ev
 
+    async def reindex(self) -> None:
+        """Send stored events (e.g. the seed history) to Search so "ask the log" can find them."""
+        n = 0
+        for ev in await self.store.list_events(limit=2000):
+            try:
+                await self.search.index(ev)
+                n += 1
+            except Exception as e:  # noqa: BLE001
+                log.warning("search reindex stopped after %d events: %s", n, e)
+                return
+        log.info("search: indexed %d stored events", n)
+
     async def _save_checkin(self, c: Checkin) -> Checkin:
         await self.store.put_checkin(c)
         await self._publish(WsCheckin(checkin=c))
