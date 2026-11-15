@@ -47,14 +47,11 @@ def instructions(job: AgentJob) -> str:
    the one she has. Do not ask for {obj} again.
 2. When you can see it, ask her to have a drink. Wait and WATCH.
 3. Ask her to show you the cup again.
-4. Only if you SAW the cup go up to her mouth, tilt, and come back down, call confirm_drink(amount,
-   confidence, evidence). evidence = what you SAW, e.g. "held up blue mug, two drinks, mug tilted further
-   after". Never write "swallowed". amount: sip / some / most / all, from what you saw.
-   A cup held still in front of the camera, or held at her mouth without tilting, is NOT a drink.
-   If you are not sure she drank, do not guess. Ask once, kindly: "Did you manage a sip?" If she says yes,
-   call confirm_drink(amount="sip", confidence=0.4, evidence="Said: ...") with a short gist of her words
-   after `Said:`. That is her report, not something you saw.
-   If you did not see the cup go to her mouth at all, ask her once more, kindly, to have a drink.
+4. Only if you SAW her raise the cup to her mouth and tilt it, call confirm_drink(amount, confidence,
+   evidence). evidence = what you SAW, e.g. "held up blue mug, two drinks, mug tilted further after".
+   Never write "swallowed". amount: sip / some / most / all, from what you saw.
+   A cup held still in front of the camera is NOT a drink. If you did not see the cup go to her
+   mouth, do not confirm; ask once more, kindly.
 5. Then thank her, say {daughter} will be pleased, say goodbye, and call end_checkin("done")."""
     elif job.kind == "meal":
         task = f"""THE TASK: a meal.

@@ -89,15 +89,15 @@ def make_model():
     key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not key:
         return None
-    # More detail per frame so a tilt of the cup is visible. HEARTH_MEDIA_RES=default leaves the API default.
-    res = os.environ.get("HEARTH_MEDIA_RES", "high").strip().lower()
+    # Optional: HEARTH_MEDIA_RES=high sends more detail per frame. Default leaves the API default (the tested setup).
+    res = os.environ.get("HEARTH_MEDIA_RES", "default").strip().lower()
     extra: dict = {}
     if res in {"low", "medium", "high"}:
         extra["media_resolution"] = getattr(gt.MediaResolution, f"MEDIA_RESOLUTION_{res.upper()}")
     try:
-        silence_ms = max(300, min(2000, int(os.environ.get("HEARTH_SILENCE_MS", "600"))))
+        silence_ms = max(300, min(2000, int(os.environ.get("HEARTH_SILENCE_MS", "900"))))
     except ValueError:
-        silence_ms = 600
+        silence_ms = 900
     return google.realtime.RealtimeModel(
         model=os.environ.get("GEMINI_LIVE_MODEL", "gemini-3.8-live"),
         api_key=key,
