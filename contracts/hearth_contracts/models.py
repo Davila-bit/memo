@@ -85,6 +85,7 @@ class Resident(Model):
     preferred_name: str  # what the agent calls her: "Margaret"
     family_name_for_her: str  # what the daughter calls her in the app: "Mum"
     daughter_name: str  # "Sarah" (the agent says "Sarah's helper")
+    phone: str | None = None  # her phone, for the daughter's "I'll call her" link
     fluid_target_ml: int = 1500
     timezone: str = "America/New_York"
     quiet_hours: tuple[str, str] = ("21:00", "07:00")  # no scheduled check-ins inside
@@ -143,6 +144,7 @@ class HearthEvent(Model):
     resident_id: str
     checkin_id: str | None = None
     kind: EventKind
+    for_kind: CheckinKind | None = None  # what a refusal / miss / concern / note was for
     source: EventSource
     confidence: Confidence = 1.0
     summary: str  # human sentence for the timeline: "Drank most of a glass of water"

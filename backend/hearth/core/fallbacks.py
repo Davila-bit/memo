@@ -191,6 +191,9 @@ class KeywordSearch:
     async def index(self, event: HearthEvent) -> None:
         return None
 
+    async def clear(self) -> None:
+        return None
+
     async def ask(self, q: str, now: datetime, recent: list[HearthEvent]) -> AskResponse:
         terms = set(_terms(q))
         scored: list[tuple[int, HearthEvent]] = []
@@ -235,7 +238,7 @@ class TemplateDigest:
             s3 = "She " + " and ".join(parts) + "."
         else:
             s3 = "Every check-in went smoothly."
-        return Digest(day=day, text=" ".join([s1, s2, s3]), generated_by="template")
+        return Digest(day=day, text=f"{s1} {s2} {s3}", generated_by="template")
 
     def health(self) -> str:
         return "mock"

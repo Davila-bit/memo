@@ -62,7 +62,7 @@ def event_to_doc(e: HearthEvent) -> dict[str, Any]:
         "time_label": time_label(ts),
         "text": " · ".join(x for x in (e.summary, e.evidence, e.said or "") if x),
     }
-    for k in ("checkin_id", "amount", "volume_ml_est", "said", "concern_category"):
+    for k in ("checkin_id", "for_kind", "amount", "volume_ml_est", "said", "concern_category"):
         v = getattr(e, k)
         if v is not None:
             doc[k] = v
@@ -86,6 +86,7 @@ def schema(name: str, synonym_set: str) -> dict[str, Any]:
             f("resident_id", "string", facet=True),
             f("checkin_id", "string", optional=True),
             f("kind", "string", facet=True),
+            f("for_kind", "string", index=False, optional=True),
             f("source", "string", facet=True),
             f("confidence", "float"),
             f("summary", "string"),

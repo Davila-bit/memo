@@ -52,6 +52,14 @@ scripts/                       ws (run in workspace), probes, dev-up
 | `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` | integrations | no Web Push; in-app alert still shows |
 | `HEARTH_KIOSK_DEVICE` (default `kitchen`) | calls | – |
 | `HEARTH_AGENT_NAME` (default `hearth-agent`), `HEARTH_RING_SECONDS` (default 45), `HEARTH_CHERT_SKIP_LINE_CHECK` | calls, agent | – |
+| `HEARTH_PUBLIC_URL` (default `http://localhost:3000`) | notifications | public web origin used in notification links |
+| `HEARTH_TIMEZONE` (default `America/New_York`) | integrations | local dates and times for search and digests |
+| `HEARTH_REDACT_NAMES` | redactor | comma-separated family names to redact; empty deny-list when missing |
+| `NTFY_ALL` (default `0`) | notifications | `1` sends non-urgent notifications to ntfy too |
+| `HEARTH_REDACTION` | redactor | `regex` skips Presidio; otherwise load it in the background |
+| `TYPESENSE_COLLECTION` (default `hearth_events`) | search | collection used for event indexing and queries |
+| `HEARTH_MOCK_SCALE` (default `1`) | core | multiplier for mock call timing |
+| `HEARTH_CORS_ORIGINS` | core | comma-separated allowed browser origins; no CORS middleware when empty |
 
 `gemini-3.8-flash` stalled with zero bytes on our free-tier key (checked Sat 23:24), so text work
 defaults to `gemini-3.5-flash-lite` (0.5 s).
@@ -71,7 +79,7 @@ defaults to `gemini-3.5-flash-lite` (0.5 s).
 | `POST /api/checkins` | `StartCheckinRequest` → `Checkin` (201) | **"Check on her now"**. 409 if one is already running |
 | `GET /api/checkins/{id}` | → `Checkin` | |
 | `POST /api/checkins/{id}/cancel` | → `Checkin` | hang up |
-| `GET /api/alerts?status=open` | → `Alert[]` | |
+| `GET /api/alerts?status=open\|handled\|all` | → `Alert[]` | default `open`; `all` includes open and handled alerts |
 | `POST /api/alerts/{id}/action` | `AlertActionRequest` → `Alert` | `retry_later` schedules a retry check-in |
 | `GET /api/schedule` · `PUT /api/schedule/{id}` · `POST /api/schedule` · `DELETE /api/schedule/{id}` | `ScheduleItem` | |
 | `GET /api/cues` · `PUT /api/cues/{id}` | `Cue` | |
@@ -82,13 +90,19 @@ defaults to `gemini-3.5-flash-lite` (0.5 s).
 | `GET /api/privacy` | → `Privacy` | |
 | `DELETE /api/privacy/data` | → `{deleted_events: int}` | delete everything stored about her |
 | `GET /api/demo/clock` · `POST /api/demo/clock` | `ClockRequest` → `Clock` | demo clock |
-| `POST /api/demo/reset` | → `Today` | re-seed 3 days of history |
+| `POST /api/demo/reset` | → `Today` | re-seed 6 previous days plus today so far |
 | `POST /api/push/subscribe` | `PushSubscription` → 204 | Web Push |
 | `GET /api/push/key` | → `{public_key: str \| null}` | VAPID public key |
 | `GET /api/ws-ticket` | → `{ticket: str}` | 60-second single-use ticket so the page can open `/ws?ticket=` on another origin |
 | `GET /api/kiosk/token?device=` | → `KioskToken` | for the `/kiosk` page; needs `?key=` = `HEARTH_INTERNAL_TOKEN` instead of a session |
 
 Errors: `{"detail": "plain sentence"}` with the right status code.
+
+`HearthEvent.for_kind: CheckinKind | null` (default `null`) identifies what a `refused`, `missed`,
+`concern` or `note` event was for. `Resident.phone: string | null` (default `null`) is her phone
+for the daughter's "I'll call her" link; the demo seeds it as `null`.
+`PushSubscription` is `{endpoint: string, keys: Record<string, string>}` in both contract mirrors.
+Privacy deletion clears stored events, check-ins, alerts and indexed search copies (`Search.clear()`).
 
 ## 5. Live channel `GET /ws` (WebSocket; session cookie or `?ticket=`)
 

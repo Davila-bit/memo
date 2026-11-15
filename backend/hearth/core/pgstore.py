@@ -36,7 +36,7 @@ log = logging.getLogger("hearth.core")
 SQL_DIR = Path(__file__).parent / "sql"
 CAGG_TZ = "America/New_York"  # the bucket timezone baked into sql/001_schema.sql
 
-EVENT_COLS = ["id", "ts", "resident_id", "checkin_id", "checkin_kind", "kind", "source", "confidence",
+EVENT_COLS = ["id", "ts", "resident_id", "checkin_id", "for_kind", "kind", "source", "confidence",
               "summary", "evidence", "amount", "volume_ml_est", "med_steps", "said", "concern_category"]
 
 
@@ -136,24 +136,23 @@ class PgStore:
 
     # ------------------------------------------------------------------ events
     @staticmethod
-    def _event_vals(ev: HearthEvent, checkin_kind: str | None) -> list[Any]:
+    def _event_vals(ev: HearthEvent) -> list[Any]:
         d = ev.model_dump()
-        d["checkin_kind"] = checkin_kind
         return [d[c] for c in EVENT_COLS]
 
-    async def add_event(self, ev: HearthEvent, checkin_kind: str | None = None) -> None:
-        await self.add_events([(ev, checkin_kind)])
+    async def add_event(self, ev: HearthEvent) -> None:
+        await self.add_events([ev])
 
-    async def add_events(self, evs: list[tuple[HearthEvent, str | None]]) -> None:
+    async def add_events(self, evs: list[HearthEvent]) -> None:
         if not evs:
             return
         sql = (f"INSERT INTO hearth.events ({', '.join(EVENT_COLS)}) VALUES "
                f"({', '.join(['%s'] * len(EVENT_COLS))}) ON CONFLICT DO NOTHING")
         async with self.pool.connection() as conn, conn.transaction():
             cur = conn.cursor()
-            await cur.executemany(sql, [self._event_vals(e, k) for e, k in evs])
+            await cur.executemany(sql, [self._event_vals(e) for e in evs])
         self.dirty = True
-        oldest = min(e.ts for e, _ in evs)
+        oldest = min(e.ts for e in evs)
         if oldest < datetime.now(UTC) - timedelta(hours=12):
             await self.refresh_history(oldest)
 
@@ -169,8 +168,7 @@ class PgStore:
         if kind is not None:
             where.append("kind = %s")
             params.append(kind)
-        cols = [c for c in EVENT_COLS if c != "checkin_kind"]
-        sql = (f"SELECT {', '.join(cols)} FROM hearth.events"
+        sql = (f"SELECT {', '.join(EVENT_COLS)} FROM hearth.events"
                + (" WHERE " + " AND ".join(where) if where else "")
                + " ORDER BY ts DESC, id DESC LIMIT %s")
         params.append(limit)

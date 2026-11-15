@@ -1,8 +1,7 @@
 """Store: one interface, two implementations (MemoryStore here, PgStore in pgstore.py).
 
 Both behave the same. Events are append-only (except the privacy delete). Everything else is
-upserted whole. `checkin_kind` travels with an event so refusals/misses can be split by what was
-asked for (HearthEvent has no such field; TODO(contract): add `for_kind` to HearthEvent).
+upserted whole. `HearthEvent.for_kind` identifies what a refusal or missed check-in was for.
 """
 
 from __future__ import annotations
@@ -45,8 +44,8 @@ class Store(Protocol):
     async def put_cue(self, cue: Cue) -> None: ...
 
     # events
-    async def add_event(self, ev: HearthEvent, checkin_kind: str | None = None) -> None: ...
-    async def add_events(self, evs: list[tuple[HearthEvent, str | None]]) -> None: ...
+    async def add_event(self, ev: HearthEvent) -> None: ...
+    async def add_events(self, evs: list[HearthEvent]) -> None: ...
     async def list_events(self, *, since: datetime | None = None, until: datetime | None = None,
                           kind: str | None = None, limit: int = 100) -> list[HearthEvent]:
         """Newest first."""
@@ -84,7 +83,7 @@ class MemoryStore:
         self.resident: Resident | None = None
         self.schedule: dict[str, ScheduleItem] = {}
         self.cues: dict[str, Cue] = {}
-        self.events: list[tuple[HearthEvent, str | None]] = []
+        self.events: list[HearthEvent] = []
         self.checkins: dict[str, Checkin] = {}
         self.alerts: dict[str, Alert] = {}
         self.push: dict[str, PushSubscription] = {}
@@ -140,23 +139,20 @@ class MemoryStore:
     async def put_cue(self, cue: Cue) -> None:
         self.cues[cue.id] = cue.model_copy()
 
-    async def add_event(self, ev: HearthEvent, checkin_kind: str | None = None) -> None:
-        self.events.append((ev.model_copy(deep=True), checkin_kind))
+    async def add_event(self, ev: HearthEvent) -> None:
+        self.events.append(ev.model_copy(deep=True))
 
-    async def add_events(self, evs: list[tuple[HearthEvent, str | None]]) -> None:
-        for ev, k in evs:
-            await self.add_event(ev, k)
+    async def add_events(self, evs: list[HearthEvent]) -> None:
+        for ev in evs:
+            await self.add_event(ev)
 
     async def list_events(self, *, since: datetime | None = None, until: datetime | None = None,
                           kind: str | None = None, limit: int = 100) -> list[HearthEvent]:
-        out = [e for e, _ in self.events
+        out = [e for e in self.events
                if (since is None or e.ts >= since) and (until is None or e.ts < until)
                and (kind is None or e.kind == kind)]
         out.sort(key=lambda e: (e.ts, e.id), reverse=True)
         return [e.model_copy(deep=True) for e in out[:limit]]
-
-    def events_with_kind(self) -> list[tuple[HearthEvent, str | None]]:
-        return list(self.events)
 
     async def count_events(self) -> int:
         return len(self.events)
