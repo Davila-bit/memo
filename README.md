@@ -1,6 +1,6 @@
 # Memo
 
-[![CI](https://github.com/Davila-bit/hearth-home/actions/workflows/ci.yml/badge.svg)](https://github.com/Davila-bit/hearth-home/actions/workflows/ci.yml)
+[![CI](https://github.com/Davila-bit/memo/actions/workflows/ci.yml/badge.svg)](https://github.com/Davila-bit/memo/actions/workflows/ci.yml)
 Accessibility evidence: [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md) (axe scans of every page at phone and laptop size, and what is not tested yet).
 
 **The call your mum never has to answer.**
