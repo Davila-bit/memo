@@ -97,13 +97,17 @@ These run on every CI build; none of them was a separate manual review.
 - **Reflow, WCAG 1.4.10** (\`a11y-extra.spec.ts\`): no horizontal scrolling at 320 px and 640 px wide on seven pages (login, Today, Week, Schedule, Ask, Privacy, Setup), with a full-page screenshot of each. The 640 px width stands in for 200% zoom of a 1280 px window. This is an emulated viewport in Chromium, not browser zoom on a real device, and it checks page width, not that every dialog reflows.
 - **Reduced motion, WCAG 2.3.3** (\`a11y-extra.spec.ts\`): with \`prefers-reduced-motion: reduce\` emulated, a practice check-in runs from start to result, and at six points on the way no running animation lasts longer than 200 ms or loops forever. The same test without the setting does catch the pulse and the 300 ms entrances, so it is measuring something. It only covers Today and the check-in flow.
 - **Keyboard on every page, WCAG 2.1.1 and 2.4.7** (\`a11y-extra.spec.ts\`, laptop size): on Week, Schedule, Privacy and Setup, Tab through the whole page once; every stop must be visible and show a focus outline or ring. On Schedule, a new check-in is added with only Tab, Enter and typing (label and time) and appears in the list. Ask is not in this check yet (it was being rebuilt), and dialogs are covered only where a spec above opens them.
+- **Screen-reader semantics, automated** (\`a11y-semantics.spec.ts\`): on all seven pages, one \`h1\`, no skipped heading levels, one \`main\`, a banner and a named navigation, \`<html lang="en">\`, a unique title that names the page, and no unnamed button, link, field or switch in the accessibility tree; controls in the same section never share a name for different purposes. This is what a screen reader relies on, not a substitute for a pass with a real one.
+- **Live announcements** (\`a11y-semantics.spec.ts\`): during a practice check-in, "Calling", "She answered", "Watching" and the result each land in a polite live region, and a new refusal alert arrives as \`role="alert"\`. The test records what changes inside live regions; it does not hear what a screen reader actually says.
+- **Focus after the check-in sheet** (\`a11y-semantics.spec.ts\`): closing it with Escape returns focus to "Check on her now"; starting a call moves focus to the live check-in heading, because the button is disabled while the call runs.
+- **Forced colours, emulated** (\`a11y-semantics.spec.ts\`): with Chromium's \`forced-colors: active\` emulation on Today (with an open alert), Week and Schedule, buttons keep a focus outline, every status badge keeps its icon and word, the week bars are drawn in the system Highlight colour and the hydration ring in GrayText and Highlight. In this emulation the computed colours are forced but screenshots still show the normal palette, so this checks our forced-colours rules, not what Windows High Contrast looks like.
 
 ## Not done yet
 
-- **No screen-reader pass** with VoiceOver, TalkBack or NVDA has been done.
+- **No screen-reader pass** with VoiceOver, TalkBack or NVDA has been done. The automated semantics and live-region checks above are what it would rely on, not the pass itself.
 - **No real devices:** phone size is emulated in desktop Chromium. Safari and Firefox are not tested.
 - **Keyboard on Ask** has not been walked through Tab by Tab, and no page has been checked for focus being hidden behind the fixed bottom bar on a phone (WCAG 2.4.11).
-- **Not tested:** real browser zoom, Windows forced colours (high contrast), voice control.
+- **Not tested:** real browser zoom, a real Windows High Contrast session (only the emulated media query above), voice control.
 - **No testing with older adults or carers** using the app.
 `;
 

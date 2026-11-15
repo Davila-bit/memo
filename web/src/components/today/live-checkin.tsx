@@ -59,6 +59,13 @@ export function LiveCheckin({ checkin, events }: { checkin: Checkin; events: Hea
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   const finished = !active && (checkin.outcome !== null || checkin.status === "ended");
+  // Each stage goes to the polite live region too, so a screen reader hears the call progress.
+  const stage = active ? stepIndex(checkin) : -1;
+  useEffect(() => {
+    if (stage < 0) return;
+    const words = [`Calling ${mum}.`, "She answered.", "Watching."];
+    useHearth.getState().announce(words[stage] ?? "");
+  }, [stage, mum]);
   useEffect(() => {
     if (finished) useHearth.getState().announce(resultTitle(checkin, ev, mum));
   }, [finished, checkin, ev, mum]);
@@ -91,7 +98,7 @@ export function LiveCheckin({ checkin, events }: { checkin: Checkin; events: Hea
       {active ? (
         <>
           <div className="flex items-baseline justify-between gap-3">
-            <h2 id="live-heading" ref={headingRef} className="font-serif text-2xl font-medium">
+            <h2 id="live-heading" ref={headingRef} tabIndex={-1} className="font-serif text-2xl font-medium">
               Checking on {mum}: {KIND_NOUN[checkin.kind]}
             </h2>
             <span className="text-sm text-muted tabular" aria-label={`${elapsed} seconds so far`}>
