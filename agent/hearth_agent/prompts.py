@@ -16,7 +16,8 @@ def _object_name(job: AgentJob) -> str:
 
 def opening_line(job: AgentJob) -> str:
     r = job.resident
-    return f"Hello {r.preferred_name}, it's {r.daughter_name}'s helper."
+    line = f"Hello {r.preferred_name}, it's {r.daughter_name}'s helper."
+    return line + (" Thank you for calling." if job.inbound else "")
 
 
 def no_video_instructions(job: AgentJob) -> str:

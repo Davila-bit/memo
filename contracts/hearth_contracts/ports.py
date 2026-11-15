@@ -9,8 +9,9 @@ Every implementation must have a no-key fallback that logs one line and keeps th
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Awaitable, Callable, Protocol
+from typing import Protocol
 
 from .models import (
     AgentJob,
@@ -58,6 +59,13 @@ class CallService(Protocol):
     async def start(self, checkin: Checkin, job: AgentJob, cb: CallCallbacks) -> None:
         """Returns quickly; the call runs as a background task. Must enforce the 90 s budget:
         whatever happens, the call is ended and `cb.call_finished` is invoked exactly once."""
+        ...
+
+    async def accept_inbound(self, checkin: Checkin, job: AgentJob, cb: CallCallbacks,
+                             call_id: str) -> dict:
+        """Return Chert's accept payload within its five-second deadline, without waiting for
+        published tracks. Raises hearth.calls.CallsUnavailable if preparation fails. The call
+        then runs in the background with the same budget, callbacks and cleanup as start()."""
         ...
 
     async def end(self, checkin_id: str, reason: str) -> None:

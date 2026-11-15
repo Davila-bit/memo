@@ -37,6 +37,6 @@ def build_call_service() -> HearthCallService:
         assert s.chert_api_key and s.chert_project_id
         chert = HttpChert(s.chert_base, s.chert_api_key, s.chert_project_id, timeout=t.http)
     elif not s.chert_ready:
-        log.warning("calls: CHERT_API_KEY / CHERT_PROJECT_ID / CHERT_LINE_ID / CHERT_IPAD_NUMBER missing; "
+        log.warning("calls: CHERT_API_KEY / CHERT_PROJECT_ID / CHERT_LINE_ID missing; "
                     "FaceTime check-ins fall back to the kiosk")
     return HearthCallService(s, rooms=rooms, chert=chert, timings=t)

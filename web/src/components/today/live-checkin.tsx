@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Checkin, HearthEvent } from "@/lib/contracts";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { confidenceWords, formatTime, isActive, isReportedEvent, KIND_NOUN, REPORTED_DETAIL, resultTitle } from "@/lib/format";
+import { confidenceWords, formatTime, isActive, isReportedEvent, KIND_NOUN, REPORTED_DETAIL, resultTitle, SOURCE_LABEL } from "@/lib/format";
 import { useHearth, type Caption } from "@/lib/store";
 import { Button } from "../ui/button";
 import { StatusBadge, type Status } from "../ui/status-badge";
@@ -98,6 +98,7 @@ export function LiveCheckin({ checkin, events }: { checkin: Checkin; events: Hea
               {elapsed}s
             </span>
           </div>
+          {checkin.trigger === "inbound" ? <p className="mt-2 text-sm font-semibold text-sky-ink">{SOURCE_LABEL.inbound}</p> : null}
           <ol className="mt-5 grid grid-cols-3 gap-2" aria-label="Progress">
             {STEPS.map((s, i) => {
               const idx = stepIndex(checkin);

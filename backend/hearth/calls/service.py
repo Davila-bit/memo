@@ -14,6 +14,7 @@ import secrets
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeVar
+from urllib.parse import urlsplit
 
 import httpx
 from hearth_contracts.models import AgentJob, Checkin, CheckinOutcome, KioskToken
@@ -38,6 +39,8 @@ BRIDGE_TTL = 15 * 60  # > 90 s left at allocation, <= 7200 s lifetime (Chert tok
 KIOSK_TTL = 12 * 3600
 CHECKIN_ROOM_EMPTY_TIMEOUT = 30  # seconds LiveKit keeps an empty check-in room
 CHECKIN_ROOM_MAX_PARTICIPANTS = 3  # agent + Chert bridge + one spare
+INBOUND_PREP_SECONDS = 3.5  # leaves time for core work + HTTP reply before Chert's 5 s deadline
+INBOUND_IDENTITY_SECONDS = 2.5
 _DEVICE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 
 Result = tuple[CheckinOutcome | None, str | None]
@@ -69,6 +72,7 @@ class _Call:
     ringing_sent: bool = False
     live: bool = False
     metadata_set: bool = False
+    inbound: bool = False
 
     @property
     def id(self) -> str:
@@ -124,6 +128,76 @@ class HearthCallService:
         self._calls[checkin.id] = call
         call.task = asyncio.create_task(self._run(call), name=f"hearth-call-{checkin.id}")
 
+    async def accept_inbound(self, checkin: Checkin, job: AgentJob, cb: CallCallbacks,
+                             call_id: str) -> dict:
+        if not self._s.livekit_ready or self._rooms is None or self._chert is None:
+            raise CallsUnavailable("Inbound FaceTime is not set up")
+        try:
+            url = urlsplit(self._s.livekit_url)
+            valid = (url.scheme == "wss" and url.hostname and url.port in (None, 443)
+                     and not url.username and not url.password and not url.fragment)
+        except ValueError:
+            valid = False
+        if not valid:
+            raise CallsUnavailable("Inbound FaceTime needs a secure LiveKit URL")
+        if self._calls:
+            raise CallsUnavailable("A call is already running")
+        call = _Call(checkin=checkin, job=job, cb=cb, transport="facetime", room=checkin.room,
+                     key_base=f"hearth-{checkin.id}-inbound", inbound=True,
+                     chert_call_id=call_id, bridge_identity=f"{BRIDGE_PREFIX}{checkin.id}")
+        self._calls[call.id] = call
+        try:
+            async with asyncio.timeout(INBOUND_PREP_SECONDS):
+                payload = await self._prepare_inbound(call)
+        except (Exception, asyncio.CancelledError) as e:
+            # Never delay a decline for Chert/LiveKit cleanup. _complete owns the callback once.
+            call.task = asyncio.create_task(self._complete(call, "error", "inbound preparation failed"))
+            if isinstance(e, asyncio.CancelledError):
+                raise
+            raise CallsUnavailable(f"Inbound preparation failed ({type(e).__name__})") from e
+        call.task = asyncio.create_task(self._run(call), name=f"hearth-inbound-{checkin.id}")
+        return payload
+
+    async def _prepare_inbound(self, call: _Call) -> dict:
+        assert self._rooms is not None
+        s = self._s
+        started = asyncio.get_running_loop().time()
+
+        async def room() -> None:
+            # Mark before the request: a timed-out create may still have reached LiveKit.
+            call.room_created = True
+            await self._rooms.ensure_room(call.room, empty_timeout=CHECKIN_ROOM_EMPTY_TIMEOUT,
+                                          max_participants=CHECKIN_ROOM_MAX_PARTICIPANTS)
+
+        async def dispatch() -> None:
+            call.dispatch_id = await self._rooms.dispatch_agent(
+                call.room, s.agent_name, call.job.model_dump_json())
+
+        # Explicit dispatch can create the room too. Ensure its limits concurrently with dispatch.
+        async with asyncio.TaskGroup() as group:
+            group.create_task(room())
+            group.create_task(dispatch())
+        remaining = INBOUND_PREP_SECONDS - (asyncio.get_running_loop().time() - started) - 0.05
+        try:
+            async with asyncio.timeout(min(INBOUND_IDENTITY_SECONDS, max(0, remaining))):
+                while True:
+                    parts = await self._rooms.participants(call.room)
+                    agent = self._pick_agent(call, parts, require_tracks=False)
+                    if agent:
+                        call.agent_identity = agent.identity
+                        break
+                    await asyncio.sleep(self._t.poll)
+        except TimeoutError:
+            pass
+        assert s.livekit_api_key and s.livekit_api_secret
+        return {
+            "action": "accept", "livekit_url": s.livekit_url,
+            "participant_token": mint_token(s.livekit_api_key, s.livekit_api_secret,
+                                            identity=call.bridge_identity, room=call.room,
+                                            ttl_seconds=BRIDGE_TTL),
+            "remote_participant_identity": call.agent_identity or s.agent_name,
+        }
+
     async def end(self, checkin_id: str, reason: str) -> None:
         call = self._calls.get(checkin_id)
         if call is None or call.ended.is_set():
@@ -168,8 +242,8 @@ class HearthCallService:
 
     def _resolve_transport(self, checkin: Checkin) -> Literal["facetime", "kiosk"]:
         if checkin.transport == "facetime":
-            if self._chert is None:
-                log.warning("call %s: Chert keys missing, so FaceTime falls back to the kiosk", checkin.id)
+            if self._chert is None or not self._s.chert_ipad_number:
+                log.warning("call %s: Chert keys or iPad number missing; FaceTime falls back to the kiosk", checkin.id)
                 return "kiosk"
             return "facetime"
         if checkin.transport != "kiosk":
@@ -188,7 +262,9 @@ class HearthCallService:
             else:
                 cap = t.agent_join + t.kiosk_presence + t.kiosk_answer + t.ring + call.job.max_seconds
                 cap += t.watchdog_extra
-                place = self._place_facetime if call.transport == "facetime" else self._place_kiosk
+                place = self._place_kiosk
+                if call.transport == "facetime":
+                    place = self._placed_facetime if call.inbound else self._place_facetime
                 outcome, error = await asyncio.wait_for(place(call), cap)
         except TimeoutError:
             log.error("call %s: watchdog fired", call.id)
@@ -203,9 +279,12 @@ class HearthCallService:
             log.exception("call %s failed", call.id)
             outcome, error = (None if call.live else "error"), f"call failed: {type(e).__name__}"
         finally:
-            await self._cleanup(call)  # bounded inside; never raises
-            await self._finish(call, outcome, error)
-            self._calls.pop(call.id, None)
+            await self._complete(call, outcome, error)
+
+    async def _complete(self, call: _Call, outcome: CheckinOutcome | None, error: str | None) -> None:
+        await self._cleanup(call)  # bounded inside; never raises
+        await self._finish(call, outcome, error)
+        self._calls.pop(call.id, None)
 
     async def _finish(self, call: _Call, outcome: CheckinOutcome | None, error: str | None) -> None:
         if call.finished:
@@ -263,7 +342,8 @@ class HearthCallService:
             if await self._pause(call, self._t.poll):
                 return None
 
-    def _pick_agent(self, call: _Call, parts: list[ParticipantState]) -> ParticipantState | None:
+    def _pick_agent(self, call: _Call, parts: list[ParticipantState], *,
+                    require_tracks: bool = True) -> ParticipantState | None:
         prefix = call.job.caller_identity_prefix
         cands = [p for p in parts if _is_agent(p)]
         if not cands:  # agent registered under a custom identity: anyone who is not "her"
@@ -271,7 +351,7 @@ class HearthCallService:
                      if not p.identity.startswith(prefix) and not p.identity.startswith(BRIDGE_PREFIX)
                      and not p.identity.startswith("kiosk-")]
         for p in cands:
-            if _agent_ready(p):
+            if not require_tracks or _agent_ready(p):
                 return p
         return None
 
@@ -464,7 +544,9 @@ class HearthCallService:
         if agent is None:
             return (None, None) if call.ended.is_set() else ("error", "agent did not join")
 
-        assert s.livekit_api_key and s.livekit_api_secret and s.chert_ipad_number
+        if not s.chert_ipad_number:
+            return "error", "the kitchen iPad number is not configured"
+        assert s.livekit_api_key and s.livekit_api_secret
         call.bridge_identity = f"{BRIDGE_PREFIX}{call.id}"
         token = mint_token(s.livekit_api_key, s.livekit_api_secret, identity=call.bridge_identity,
                            room=call.room, ttl_seconds=BRIDGE_TTL)
@@ -495,7 +577,18 @@ class HearthCallService:
         call.chert_call_id = str(res.data["id"])
         log.info("call %s: Chert call %s allocated", call.id, call.chert_call_id)
 
-        rung = await self._ring_facetime(call)
+        return await self._placed_facetime(call)
+
+    async def _placed_facetime(self, call: _Call) -> Result:
+        if call.inbound:
+            await self._ringing(call)
+        try:
+            if call.inbound:
+                rung = await asyncio.wait_for(self._ring_facetime(call), self._t.ring)
+            else:
+                rung = await self._ring_facetime(call)
+        except TimeoutError:
+            return "error", "inbound call never became ready"
         if rung is not None:
             return rung
         await self._go_live(call)
@@ -530,6 +623,17 @@ class HearthCallService:
                         events = await self._safe("Chert GET events",
                                                   self._chert.get_events(call.chert_call_id)) or []
                     if has_bridge_ready(events):
+                        if call.inbound:
+                            agent = self._pick_agent(call, await self._participants(call.room) or [],
+                                                     require_tracks=False)
+                            if agent:
+                                call.agent_identity = agent.identity
+                            if call.agent_identity is None:
+                                # The bridge can be ready before list_participants catches up.
+                                if now < deadline:
+                                    await self._pause(call, t.poll)
+                                    continue
+                                return "error", "inbound call never became ready"
                         return None
                 if st in TERMINAL:
                     call.chert_terminal = True
@@ -548,10 +652,17 @@ class HearthCallService:
                     ending_since = None
             if now >= deadline:
                 log.info("call %s: not answered within %.0f s", call.id, t.ring)
+                if call.inbound:
+                    return "error", "inbound call never became ready"
                 return "no_answer", None
             if now >= next_agent_check:
                 next_agent_check = now + 2.0
-                if await self._agent_present(call) is False:
+                if call.inbound and call.agent_identity is None:
+                    agent = self._pick_agent(call, await self._participants(call.room) or [],
+                                             require_tracks=False)
+                    if agent:
+                        call.agent_identity = agent.identity
+                elif await self._agent_present(call) is False:
                     return "error", "the helper left before she answered"
             if await self._pause(call, t.poll):
                 return None, None

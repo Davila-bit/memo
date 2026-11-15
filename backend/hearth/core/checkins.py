@@ -91,6 +91,9 @@ class CheckinService:
         self.ending: dict[str, tuple[str | None, str | None, bool]] = {}
         self.mock_requested: dict[str, str] = {}  # checkin_id -> mock_outcome, so a retry replays it
         self.tasks: set[asyncio.Task] = set()
+        # Process-lifetime decisions, including declines. Retries share an in-flight decision.
+        # Keep tokens in memory only; never store them in a check-in or log them.
+        self.inbound_decisions: dict[str, asyncio.Task[dict]] = {}
         self._last_tick: datetime | None = None
 
     # ------------------------------------------------------------------ helpers
@@ -152,6 +155,10 @@ class CheckinService:
             return "[removed]"
 
     async def add_event(self, ev: HearthEvent, for_kind: CheckinKind | None) -> HearthEvent:
+        if ev.checkin_id:
+            checkin = await self.store.get_checkin(ev.checkin_id)
+            if checkin and checkin.trigger == "inbound":
+                ev = ev.model_copy(update={"source": "inbound"})
         ev = ev.model_copy(update={"for_kind": for_kind})
         await self.store.add_event(ev)
         await self._publish(WsEvent(event=ev))
@@ -268,6 +275,55 @@ class CheckinService:
             await self.call_finished(cid, "error", f"The call couldn't start: {type(e).__name__}")
         return await self._get(cid)
 
+    async def incoming(self, call_id: str) -> dict:
+        task = self.inbound_decisions.get(call_id)
+        if task is None:
+            task = self._bg(self._incoming_decision(call_id))
+            self.inbound_decisions[call_id] = task
+        # A disconnected webhook client must not cancel a decision shared with a retry.
+        return await asyncio.shield(task)
+
+    async def _incoming_decision(self, call_id: str) -> dict:
+        c: Checkin | None = None
+        try:
+            async with asyncio.timeout(4.0):
+                async with self.lock:
+                    service = self.real_calls
+                    h = service.health() if service is not None else {}
+                    if (await self.store.active_checkin() is not None or
+                            h.get("livekit") != "ok" or h.get("chert") != "ok"):
+                        log.info("inbound FaceTime declined: busy or unavailable")
+                        return {"action": "decline"}
+                    r = await self.resident()
+                    now = self.clock.now()
+                    day = now.astimezone(ZoneInfo(r.timezone)).date()
+                    nearby = [(abs((at_local(day + timedelta(days=offset), item.time, r.timezone)
+                                    - now).total_seconds()), item)
+                              for item in await self.store.list_schedule() if item.enabled
+                              for offset in (-1, 0, 1)]
+                    distance, item = min(nearby, key=lambda pair: pair[0]) if nearby else (float("inf"), None)
+                    item = item if distance <= 90 * 60 else None
+                    kind = item.kind if item else "drink"
+                    cue = await self._cue_for(kind, item.cue_id if item else None, r)
+                    cid = new_id("chk")
+                    c = Checkin(id=cid, resident_id=r.id, kind=kind, transport="facetime", trigger="inbound",
+                                status="queued", schedule_item_id=item.id if item else None,
+                                cue_id=cue.id if cue else None, room=f"checkin-{cid}", created_at=now)
+                    await self._save_checkin(c)
+                    self.services[cid] = service
+                job = AgentJob(checkin_id=c.id, kind=c.kind, transport="facetime", inbound=True,
+                               resident=r, cue=cue, api_base=self.settings.api_base,
+                               caller_identity_prefix="chert-bridge-", max_seconds=self.settings.max_call_seconds,
+                               context=await self.context_line(r))
+                return await service.accept_inbound(c, job, self, call_id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("inbound FaceTime declined: %s", type(e).__name__)
+            if c is not None:
+                # end() is quick; resource cleanup is owned by the calls service in the background.
+                self._bg(self.real_calls.end(c.id, "inbound preparation failed"))
+                await self._finish(c.id, "error", "inbound preparation failed", defer_effects=True)
+            return {"action": "decline"}
+
     # ------------------------------------------------------------------ CallCallbacks
     async def _advance(self, checkin_id: str, status: str) -> Checkin | None:
         async with self.lock:
@@ -301,7 +357,7 @@ class CheckinService:
         await self._finish(checkin_id, outcome, error)
 
     async def _finish(self, checkin_id: str, outcome: str | None, error: str | None, *,
-                      cancelled: bool = False) -> None:
+                      cancelled: bool = False, defer_effects: bool = False) -> None:
         if checkin_id in self.ending:
             outcome, error, cancelled = self.ending.pop(checkin_id)
         async with self.lock:
@@ -353,13 +409,19 @@ class CheckinService:
             c = c.model_copy(update={"status": "ended", "ended_at": now, "outcome": final, "summary": summary,
                                      "error": error if final == "error" else None})
             await self._save_checkin(c)
-        if event:
-            await self.add_event(event, c.kind)
-        if alert:
-            await self._save_alert(alert)
-            await self._notify(alert.title, alert.detail, url=f"/?alert={alert.id}", actions=REFUSAL_ACTIONS[1:])
-        if retry:
-            self._bg(self._retry_after(c, self.settings.retry_seconds))
+        async def effects() -> None:
+            if event:
+                await self.add_event(event, c.kind)
+            if alert:
+                await self._save_alert(alert)
+                await self._notify(alert.title, alert.detail, url=f"/?alert={alert.id}", actions=REFUSAL_ACTIONS[1:])
+            if retry:
+                self._bg(self._retry_after(c, self.settings.retry_seconds))
+
+        if defer_effects:
+            self._bg(effects())
+        else:
+            await effects()
 
     async def _retry_after(self, first: Checkin, seconds: float) -> None:
         await asyncio.sleep(seconds)
