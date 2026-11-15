@@ -313,6 +313,5 @@ def test_websocket_rejects_without_auth(make_client):
     from starlette.websockets import WebSocketDisconnect
 
     c = make_client(login=False)
-    with pytest.raises(WebSocketDisconnect):
-        with c.websocket_connect("/ws?ticket=bogus") as ws:
-            ws.receive_json()
+    with pytest.raises(WebSocketDisconnect), c.websocket_connect("/ws?ticket=bogus") as ws:
+        ws.receive_json()

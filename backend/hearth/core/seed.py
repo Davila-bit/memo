@@ -4,7 +4,7 @@ Deterministic (seeded RNG) so every demo looks the same."""
 from __future__ import annotations
 
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from hearth_contracts import AMOUNT_ML, Consent, Cue, HearthEvent, Resident, ScheduleItem
@@ -28,7 +28,7 @@ def resident() -> Resident:
         timezone=TZ,
         quiet_hours=("21:00", "07:00"),
         consent=Consent(status="signed", signed_by="Margaret Ellis", relation="self",
-                        signed_at=datetime(2026, 11, 10, 15, 0, tzinfo=timezone.utc)),
+                        signed_at=datetime(2026, 11, 10, 15, 0, tzinfo=UTC)),
     )
 
 

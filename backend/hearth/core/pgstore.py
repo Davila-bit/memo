@@ -9,14 +9,10 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
-
-from psycopg import errors
-from psycopg.rows import dict_row
-from psycopg.types.json import Jsonb
-from psycopg_pool import AsyncConnectionPool
+from zoneinfo import ZoneInfo
 
 from hearth_contracts import (
     Alert,
@@ -28,6 +24,10 @@ from hearth_contracts import (
     Resident,
     ScheduleItem,
 )
+from psycopg import errors
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
+from psycopg_pool import AsyncConnectionPool
 
 from .clock import local_day_bounds
 
@@ -85,11 +85,10 @@ class PgStore:
         return not await self._rows("SELECT 1 FROM hearth.residents LIMIT 1")
 
     async def wipe(self) -> None:
-        async with self.pool.connection() as conn:
-            async with conn.transaction():
-                for t in ["events", "residents", "schedule_items", "cues", "checkins", "alerts"]:
-                    await conn.execute(f"DELETE FROM hearth.{t}")
-                await conn.execute("DELETE FROM hearth.kv WHERE key <> 'clock_offset'")
+        async with self.pool.connection() as conn, conn.transaction():
+            for t in ["events", "residents", "schedule_items", "cues", "checkins", "alerts"]:
+                await conn.execute(f"DELETE FROM hearth.{t}")
+            await conn.execute("DELETE FROM hearth.kv WHERE key <> 'clock_offset'")
         self.dirty = True
 
     # ------------------------------------------------------------------ docs
@@ -150,11 +149,13 @@ class PgStore:
             return
         sql = (f"INSERT INTO hearth.events ({', '.join(EVENT_COLS)}) VALUES "
                f"({', '.join(['%s'] * len(EVENT_COLS))}) ON CONFLICT DO NOTHING")
-        async with self.pool.connection() as conn:
-            async with conn.transaction():
-                cur = conn.cursor()
-                await cur.executemany(sql, [self._event_vals(e, k) for e, k in evs])
+        async with self.pool.connection() as conn, conn.transaction():
+            cur = conn.cursor()
+            await cur.executemany(sql, [self._event_vals(e, k) for e, k in evs])
         self.dirty = True
+        oldest = min(e.ts for e, _ in evs)
+        if oldest < datetime.now(UTC) - timedelta(hours=12):
+            await self.refresh_history(oldest)
 
     async def list_events(self, *, since: datetime | None = None, until: datetime | None = None,
                           kind: str | None = None, limit: int = 100) -> list[HearthEvent]:
@@ -182,6 +183,7 @@ class PgStore:
     async def delete_all_events(self) -> int:
         rows = await self._rows("WITH d AS (DELETE FROM hearth.events RETURNING 1) SELECT count(*) AS n FROM d")
         self.dirty = True
+        await self.refresh_history(datetime.now(UTC) - timedelta(days=95))
         return int(rows[0]["n"])
 
     # ------------------------------------------------------------------ check-ins / alerts
@@ -245,16 +247,30 @@ class PgStore:
             for view in ("hearth.fluids_daily", "hearth.adherence_daily"):
                 await conn.execute("CALL refresh_continuous_aggregate(%s, %s, %s)", [view, start, end])
 
+    async def refresh_history(self, since: datetime) -> None:
+        """Re-materialise complete past days after a write into them (never today: see day_stats)."""
+        today = datetime.now(UTC).astimezone(ZoneInfo(CAGG_TZ)).date()
+        today_start, _ = local_day_bounds(today, CAGG_TZ)
+        start = since - timedelta(days=1)
+        if start >= today_start - timedelta(days=1):
+            return
+        try:
+            await self.refresh_aggregates(start, today_start)
+        except Exception as e:  # noqa: BLE001
+            log.warning("cagg refresh failed (%s); the policy will catch up", e)
+
     async def day_stats(self, days: list[date], tz: str) -> list[DayStats] | None:
         if tz != CAGG_TZ or not days:
             return None
         start, _ = local_day_bounds(min(days), tz)
-        _, end = local_day_bounds(max(days), tz)
+        today_start, end = local_day_bounds(max(days), tz)
         if self.dirty:
-            # Real-time aggregation covers rows above the watermark; rows written into
-            # already-materialised days (seed history, privacy delete) need this refresh.
+            # Past days: rows written into already-materialised buckets (seed history, privacy
+            # delete) need a refresh. Today is deliberately left out of the window, so its bucket
+            # stays above the watermark and real-time aggregation serves it straight from the
+            # hypertable: a drink confirmed a second ago is already in /api/week.
             try:
-                await self.refresh_aggregates(start - timedelta(days=1), end + timedelta(days=1))
+                await self.refresh_aggregates(start - timedelta(days=1), today_start)
                 self.dirty = False
             except Exception as e:  # noqa: BLE001
                 log.warning("cagg refresh failed (%s); serving what is materialised", e)

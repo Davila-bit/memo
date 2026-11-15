@@ -82,11 +82,11 @@ class MockCallService:
     async def _run(self, checkin: Checkin, job: AgentJob, cb: Any) -> None:
         try:
             await asyncio.wait_for(self._script(checkin, job, cb), timeout=self.max_seconds * self.scale + 1)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             await self._finish(checkin.id, "error", "The call reached its 90-second limit")
         except asyncio.CancelledError:
             raise
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.exception("mock call crashed")
             await self._finish(checkin.id, "error", f"Mock call crashed: {type(e).__name__}")
 

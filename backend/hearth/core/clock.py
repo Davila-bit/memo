@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from hearth_contracts import Clock, WsClock
@@ -26,7 +26,7 @@ class DemoClock:
         self.offset_minutes = int(v or 0)
 
     def now(self) -> datetime:
-        return datetime.now(timezone.utc) + timedelta(minutes=self.offset_minutes)
+        return datetime.now(UTC) + timedelta(minutes=self.offset_minutes)
 
     async def set_offset(self, minutes: int) -> None:
         self.offset_minutes = int(minutes)
@@ -47,12 +47,12 @@ def local_day_bounds(d: date, tz: str) -> tuple[datetime, datetime]:
     z = ZoneInfo(tz)
     start = datetime.combine(d, time(0, 0), tzinfo=z)
     end = datetime.combine(d + timedelta(days=1), time(0, 0), tzinfo=z)
-    return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+    return start.astimezone(UTC), end.astimezone(UTC)
 
 
 def at_local(d: date, hhmm: str, tz: str) -> datetime:
     h, m = (int(x) for x in hhmm.split(":"))
-    return datetime.combine(d, time(h, m), tzinfo=ZoneInfo(tz)).astimezone(timezone.utc)
+    return datetime.combine(d, time(h, m), tzinfo=ZoneInfo(tz)).astimezone(UTC)
 
 
 def in_quiet_hours(hhmm: str, quiet: tuple[str, str]) -> bool:

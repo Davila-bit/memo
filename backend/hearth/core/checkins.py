@@ -131,7 +131,7 @@ class CheckinService:
     async def _publish(self, msg) -> None:
         try:
             await self.bus.publish(msg)
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("bus publish failed")
 
     async def _notify(self, title: str, body: str, *, urgent: bool = False, url: str | None = None,
@@ -174,6 +174,15 @@ class CheckinService:
         if c is None:
             raise NotFound("That check-in doesn't exist")
         return c
+
+    async def _due(self, c: Checkin, r: Resident) -> datetime:
+        """When this check-in was due: the schedule time ("her 2:00 water"), else when it started."""
+        first = self.retry_origin.get(c.id, c.created_at)
+        if c.schedule_item_id:
+            item = await self.store.get_schedule_item(c.schedule_item_id)
+            if item:
+                return at_local(first.astimezone(ZoneInfo(r.timezone)).date(), item.time, r.timezone)
+        return first
 
     async def _label_for(self, c: Checkin) -> str | None:
         if c.schedule_item_id:
@@ -291,7 +300,7 @@ class CheckinService:
             final = c.outcome or (None if cancelled else (outcome or "error"))
             summary = c.summary
             what = wording.what_for(c.kind, await self._label_for(c))
-            due = self.retry_origin.get(c.id, c.created_at)
+            due = await self._due(c, r)
             event: HearthEvent | None = None
             alert: Alert | None = None
             retry = False
@@ -340,7 +349,7 @@ class CheckinService:
                 return
             except Conflict:
                 await asyncio.sleep(5)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("retry check-in failed to start")
                 return
 
@@ -416,7 +425,7 @@ class CheckinService:
             label = await self._label_for(c)
             what = wording.what_for(c.kind, label)
             said = self._redact(body.said) or ""
-            due = self.retry_origin.get(c.id, c.created_at)
+            due = await self._due(c, r)
             ev = HearthEvent(id=new_id("ev"), ts=now, resident_id=r.id, checkin_id=c.id, kind="refused",
                              source=c.transport, summary=f"Said no to her {what}", said=said)
             asked = "Asked twice, kindly." if body.asked_times >= 2 else "Asked once, kindly."
@@ -561,7 +570,7 @@ class CheckinService:
         while True:
             try:
                 await self.tick()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("schedule tick failed")
             await asyncio.sleep(self.settings.tick_seconds)
 

@@ -39,7 +39,7 @@ class Settings:
     max_call_seconds: int = 90
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         env = os.environ
         s = cls()
         t = env.get("HEARTH_TRANSPORT", "mock").strip() or "mock"

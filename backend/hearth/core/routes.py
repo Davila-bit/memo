@@ -11,8 +11,6 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, WebSocket
 from fastapi.responses import JSONResponse
-from starlette.websockets import WebSocketDisconnect
-
 from hearth_contracts import (
     AgentCaption,
     AgentStatus,
@@ -48,6 +46,7 @@ from hearth_contracts import (
     Week,
     WsCheckin,
 )
+from starlette.websockets import WebSocketDisconnect
 
 from .auth import COOKIE, MAX_AGE, Auth, client_ip, is_https, require_internal, require_session, ws_allowed
 from .checkins import CheckinService, Conflict, NotFound
@@ -101,7 +100,7 @@ async def kiosk_token(request: Request, key: str = Query(...), device: str | Non
         raise HTTPException(status_code=503, detail="Kiosk calls aren't set up on this server yet.")
     try:
         return await calls.kiosk_token(device or request.app.state.settings.kiosk_device)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.warning("kiosk token failed: %s", e)
         raise HTTPException(status_code=503, detail="Kiosk calls aren't available right now.") from e
 
