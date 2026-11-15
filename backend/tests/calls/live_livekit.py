@@ -103,7 +103,7 @@ def mk(transport: str, cid: str, room: str) -> tuple[Checkin, AgentJob]:
     r = Resident(id="margaret", name="Margaret Ellis", preferred_name="Margaret", family_name_for_her="Mum",
                  daughter_name="Sarah", consent=Consent(status="signed", signed_by="Margaret Ellis", relation="self"))
     c = Checkin(id=cid, resident_id="margaret", kind="drink", transport=transport, status="queued",  # type: ignore[arg-type]
-                room=room, created_at=dt.datetime.now(dt.timezone.utc))
+                room=room, created_at=dt.datetime.now(dt.UTC))
     j = AgentJob(checkin_id=cid, kind="drink", transport=transport, resident=r, api_base="http://127.0.0.1:8000",  # type: ignore[arg-type]
                  caller_identity_prefix="chert-bridge-" if transport == "facetime" else "kiosk-", max_seconds=30)
     return c, j

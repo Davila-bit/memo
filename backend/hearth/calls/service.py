@@ -203,10 +203,7 @@ class HearthCallService:
             log.exception("call %s failed", call.id)
             outcome, error = (None if call.live else "error"), f"call failed: {type(e).__name__}"
         finally:
-            try:
-                await asyncio.wait_for(self._cleanup(call), t.cleanup)
-            except Exception as e:  # noqa: BLE001
-                log.error("call %s: cleanup incomplete (%s)", call.id, type(e).__name__)
+            await self._cleanup(call)  # bounded inside; never raises
             await self._finish(call, outcome, error)
             self._calls.pop(call.id, None)
 
@@ -582,9 +579,21 @@ class HearthCallService:
                     self._t.end_wait)
 
     async def _cleanup(self, call: _Call) -> None:
-        rooms = self._rooms
+        """Two bounded phases: hang up the FaceTime call (<= 2 HTTP tries + end_wait), then release
+        LiveKit resources (<= t.cleanup). A slow phase can't starve the other."""
+        t = self._t
         if call.chert_call_id and not call.chert_terminal and self._chert is not None:
-            await self._end_chert(call)
+            try:
+                await asyncio.wait_for(self._end_chert(call), 2 * t.http + t.end_wait + 2)
+            except Exception as e:  # noqa: BLE001
+                log.error("call %s: ending the FaceTime call failed (%s)", call.id, type(e).__name__)
+        try:
+            await asyncio.wait_for(self._release_livekit(call), t.cleanup)
+        except Exception as e:  # noqa: BLE001
+            log.error("call %s: LiveKit cleanup incomplete (%s)", call.id, type(e).__name__)
+
+    async def _release_livekit(self, call: _Call) -> None:
+        rooms = self._rooms
         if rooms is None:
             return
         if call.metadata_set:

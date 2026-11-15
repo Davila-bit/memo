@@ -158,6 +158,22 @@ async def test_stuck_in_ending_after_live_still_finishes_once():
     assert len(chert.ended) == 1
 
 
+async def test_hanging_chert_end_still_releases_livekit_and_finishes():
+    rooms = FakeRooms()
+    chert = FakeChert([{"status": "dialing"}, LIVE], rooms=rooms)
+
+    async def hang(call_id: str, key: str) -> int:
+        await asyncio.sleep(3600)
+        return 202
+
+    chert.end_call = hang  # type: ignore[method-assign]
+    t0 = time.monotonic()
+    cb = await run(HearthCallService(SETTINGS, rooms=rooms, chert=chert, timings=FAST), checkin(),
+                   RecordingCallbacks(), max_seconds=1)
+    assert len(cb.finished()) == 1 and time.monotonic() - t0 < 8
+    assert ("delete_room", "checkin-ck1") in rooms.log
+
+
 async def test_agent_never_joins_cleans_up():
     rooms = FakeRooms(agent_joins=False)
     chert = FakeChert()

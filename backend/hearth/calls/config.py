@@ -34,7 +34,7 @@ class Timings:
     ending_grace: float = 15.0  # a call in `ending` before live must go terminal within this
     end_wait: float = 15.0  # after POST /end (202), poll until terminal
     http: float = 10.0  # each Chert / LiveKit HTTP request
-    cleanup: float = 25.0  # whole cleanup (end call + room/dispatch removal)
+    cleanup: float = 25.0  # LiveKit part of cleanup (metadata, agent removal, dispatch, room)
     watchdog_extra: float = 60.0  # hard cap = agent_join + ring + max_seconds + this
 
 
