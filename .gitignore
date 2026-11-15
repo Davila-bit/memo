@@ -19,3 +19,7 @@ fnox.toml
 *credentials*.txt
 *api-keys*.txt
 .cache/
+
+# agent worktrees and local tooling
+.claude/
+.env.coder*
