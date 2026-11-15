@@ -49,3 +49,35 @@ test("setup saves each step and runs a practice check-in", async ({ page }, info
   await expect(page.getByLabel("Their full name")).toHaveValue("Sarah Ellis");
   await expect(page.getByLabel("Date they agreed")).toHaveValue("2026-11-14");
 });
+
+test("setup shows the kitchen iPad checklist", async ({ page }, info) => {
+  await signIn(page);
+  await page.goto("/setup");
+  const card = page.locator("#setup-ipad");
+  await expect(page.getByRole("heading", { level: 2, name: "The kitchen iPad" })).toBeVisible();
+  await expect(card.getByRole("checkbox")).toHaveCount(5);
+  await expect(card.getByRole("status")).toHaveText("0 of 5 done");
+
+  const first = page.getByLabel(/Turn on Auto-Answer\./);
+  await first.check();
+  await expect(first).toBeChecked();
+  await expect(card.getByRole("status")).toHaveText("1 of 5 done");
+
+  // Keyboard: Tab to the next box and tick it with Space.
+  await first.focus();
+  await page.keyboard.press("Tab");
+  const second = page.getByLabel(/Save the helper as a contact\./);
+  await expect(second).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(second).toBeChecked();
+  await expect(card.getByRole("status")).toHaveText("2 of 5 done");
+  await page.keyboard.press("Space");
+  await expect(second).not.toBeChecked();
+
+  await page.reload();
+  await expect(page.getByLabel(/Turn on Auto-Answer\./)).toBeChecked();
+  await expect(card.getByRole("status")).toHaveText("1 of 5 done");
+
+  await expectAccessible(page, info, "setup-ipad");
+  await shot(page, info, "setup-ipad", true);
+});
