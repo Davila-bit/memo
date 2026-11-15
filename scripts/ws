@@ -32,6 +32,7 @@ tty_args=(-i)
 
 container=${WS_CONTAINER:-$(docker ps -q \
   --filter label=hearth.workspace=true \
+  --filter "label=coder.owner=${WS_OWNER:-hearth}" \
   --filter "label=coder.workspace_name=$WS_NAME" | head -1)}
 
 if [ -n "$container" ]; then

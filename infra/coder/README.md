@@ -4,7 +4,7 @@ Coder v2.38.7 (OSS) in Docker, built-in Postgres, data in volume `hearth-coder-h
 
 - **Start:** `docker compose -f infra/coder/compose.yaml up -d` (stop: `... stop`). Rebuild the workspace image: `docker build -t hearth-dev:latest infra/coder`.
 - **URLs:** local `http://127.0.0.1:7080`; public (built-in dev tunnel, `CODER_ACCESS_URL` unset) `https://<tunnel-id>.pit-1.try.coder.app`. The URL survives restarts (key in the volume); confirm with `docker logs hearth-coder | grep try.coder.app`.
-- **Admin:** user `hearth`; password in `.env.coder` at the repo root (gitignored).
+- **Admin:** user `hearth`; password in `~/.config/memo-secrets/.env.coder` on the host (outside the repo, so workspaces cannot read it).
 - **Workspace `hearth`** (container `coder-hearth-hearth`, image `hearth-dev:latest`): the repo is bind-mounted at `/path/to/memo`, GPU on. Apps: code-server (VS Code in the browser), `web` (:3000) and `api` (:8000). Ports 3000/8000 are also published on host `127.0.0.1`.
 - **Teammate web URLs:** `https://web--hearth--hearth--<tunnel-id>.pit-1.try.coder.app/` and `https://api--hearth--hearth--<tunnel-id>.pit-1.try.coder.app/`. Apps are shared with any signed-in user.
 - **Push template changes:** `docker cp infra/coder/template/. hearth-coder:/home/coder/hearth-template/ && docker exec hearth-coder coder templates push hearth -d /home/coder/hearth-template --yes`, then `coder update hearth`.

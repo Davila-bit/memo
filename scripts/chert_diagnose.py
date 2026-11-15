@@ -107,6 +107,9 @@ def main() -> None:
     elif cmd == "attempt":
         import asyncio
         asyncio.run(attempt())
+    elif cmd == "receive":
+        import asyncio
+        asyncio.run(receive())
     else:
         sys.exit(__doc__)
 
@@ -431,6 +434,281 @@ async def attempt() -> None:  # noqa: C901 - linear experiment script
     await lk.aclose()
     ok, why = await asyncio.to_thread(gate)
     log("gate after:", why)
+
+
+# ---------------------------------------------------------------- inbound webhook receiver
+
+async def receive() -> None:  # noqa: C901 - linear experiment script
+    """BYOR inbound receiver. A warm room with an agent stand-in (tone + camera card) waits; on
+    `call.incoming` we accept at once with a fresh bridge token for that room, then log every track
+    the bridge publishes and count caller video frames (memory only). Exits after the first call
+    ends, or after MAX_MIN minutes. Env: LIVEKIT_*, CHERT_* (call polling/end), PORT (8110),
+    HOOK_PATH (/chert-hook), ACTIVE_S (60: we end the call through the API after this), MAX_MIN (25),
+    GEMINI_API_KEY (optional: one frame described in one line)."""
+    import asyncio
+    import io
+    import math
+    import struct
+    import time
+    from datetime import timedelta
+
+    import numpy as np
+    from aiohttp import web
+    from livekit import api, rtc
+
+    t0 = time.time()
+
+    def log(*a: object) -> None:
+        print(f"{time.strftime('%H:%M:%S', time.gmtime())} [{time.time() - t0:6.1f}s]", *a, flush=True)
+
+    port = int(os.environ.get("PORT", "8110"))
+    hook_path = os.environ.get("HOOK_PATH", "/chert-hook")
+    active_s = int(os.environ.get("ACTIVE_S", "60"))
+    max_min = float(os.environ.get("MAX_MIN", "25"))
+    key, secret = os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]
+    room_name = f"diag-inbound-{int(time.time())}"
+    agent_id = "diag-agent"
+
+    def tok(identity: str, ttl: int = 1800) -> str:
+        return (api.AccessToken(key, secret).with_identity(identity).with_name(identity)
+                .with_ttl(timedelta(seconds=ttl))
+                .with_grants(api.VideoGrants(room_join=True, room=room_name, can_publish=True, can_subscribe=True))
+                .to_jwt())
+
+    ok, why = await asyncio.to_thread(gate)
+    log("line state:", why, "" if ok else "(NOT accepting right now: an incoming call may not reach us)")
+
+    def routing() -> str:
+        _, j = req("GET", "/lines")
+        ln = next((x for x in (dig(j, "data", "items") or []) if x.get("id") == os.environ.get("CHERT_LINE_ID")), {})
+        _, i = req("GET", "/integrations")
+        items = dig(i, "data", "items") or []
+        urls = [mask(str(x.get("url") or x.get("webhook_url") or ""))[:80] for x in items]
+        return (f"line integration_id={'set' if ln.get('integration_id') else None} inbound_policy={ln.get('inbound_policy')} "
+                f"assistant={ln.get('default_assistant_id')} routing={ln.get('routing_status')}; integrations={len(items)} {urls}")
+
+    log("routing:", await asyncio.to_thread(routing))
+
+    # --- warm room + agent stand-in
+    room = rtc.Room()
+    video_stats: dict[str, dict] = {}
+    audio_frames: dict[str, int] = {}
+    bridge_ids: set[str] = set()
+    state: dict = {"call_id": None, "done": asyncio.Event(), "jpeg": None, "accepted_at": None}
+
+    async def watch_video(track: rtc.Track, k: str) -> None:
+        s = video_stats.setdefault(k, {"frames": 0, "size": None, "first_at": None, "changed": 0, "luma": None})
+        prev = None
+        async for ev in rtc.VideoStream(track):
+            f = ev.frame
+            s["frames"] += 1
+            s["size"] = (f.width, f.height)
+            if s["first_at"] is None:
+                s["first_at"] = time.time()
+                log(f"FIRST CALLER VIDEO FRAME on {k}: {f.width}x{f.height}")
+            if s["frames"] % 15 == 1:
+                rgba = f.convert(rtc.VideoBufferType.RGBA)
+                arr = np.frombuffer(rgba.data, dtype=np.uint8).reshape(rgba.height, rgba.width, 4)
+                small = arr[::16, ::16, :3].astype(np.int16)
+                if prev is not None and prev.shape == small.shape and np.abs(small - prev).mean() > 1.5:
+                    s["changed"] += 1
+                prev = small
+                s["luma"] = int(arr[..., :3].mean())
+                if state["jpeg"] is None and s["frames"] > 30:
+                    from PIL import Image
+                    buf = io.BytesIO()
+                    Image.fromarray(arr[..., :3]).save(buf, "JPEG", quality=80)
+                    state["jpeg"] = buf.getvalue()  # memory only
+                if s["frames"] % 75 == 1:
+                    log(f"video {k}: frames={s['frames']} size={s['size']} luma={s['luma']} changed={s['changed']}")
+
+    async def count_audio(track: rtc.Track, k: str) -> None:
+        async for _ in rtc.AudioStream(track):
+            audio_frames[k] = audio_frames.get(k, 0) + 1
+
+    @room.on("participant_connected")
+    def _pc(p: rtc.RemoteParticipant) -> None:
+        log(f"EV participant_connected {p.identity}")
+
+    @room.on("participant_disconnected")
+    def _pd(p: rtc.RemoteParticipant) -> None:
+        log(f"EV participant_disconnected {p.identity}")
+        if p.identity in bridge_ids and state["call_id"]:
+            asyncio.get_event_loop().call_later(4, state["done"].set)
+
+    @room.on("local_track_subscribed")
+    def _lts(track: object) -> None:
+        log(f"EV bridge subscribed to our track {getattr(track, 'name', '?')}")
+
+    @room.on("track_published")
+    def _tp(pub: rtc.RemoteTrackPublication, p: rtc.RemoteParticipant) -> None:
+        log(f"EV TRACK PUBLISHED by {p.identity}: name={pub.name!r} kind={pub.kind} source={pub.source} "
+            f"mime={getattr(pub, 'mime_type', '?')} muted={pub.muted} {getattr(pub, 'width', '')}x{getattr(pub, 'height', '')}")
+
+    @room.on("track_unpublished")
+    def _tup(pub: rtc.RemoteTrackPublication, p: rtc.RemoteParticipant) -> None:
+        log(f"EV track_unpublished by {p.identity}: {pub.name!r}")
+
+    @room.on("track_muted")
+    def _tm(p: object, pub: object) -> None:
+        log(f"EV track_muted {getattr(p, 'identity', '?')} {getattr(pub, 'name', '?')}")
+
+    @room.on("track_unmuted")
+    def _tu(p: object, pub: object) -> None:
+        log(f"EV track_unmuted {getattr(p, 'identity', '?')} {getattr(pub, 'name', '?')}")
+
+    @room.on("track_subscribed")
+    def _ts(track: rtc.Track, pub: rtc.RemoteTrackPublication, p: rtc.RemoteParticipant) -> None:
+        k = f"{p.identity}/{pub.name}"
+        log(f"EV track_subscribed {k} kind={track.kind}")
+        if track.kind == rtc.TrackKind.KIND_VIDEO:
+            asyncio.create_task(watch_video(track, k))
+        else:
+            asyncio.create_task(count_audio(track, k))
+
+    await room.connect(os.environ["LIVEKIT_URL"], tok(agent_id), rtc.RoomOptions(auto_subscribe=True))
+    asrc = rtc.AudioSource(48000, 1)
+    atrack = rtc.LocalAudioTrack.create_audio_track("agent-voice", asrc)
+    aopts = rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
+    try:
+        aopts.red = False
+        aopts.dtx = False
+    except Exception:
+        pass
+    await room.local_participant.publish_track(atrack, aopts)
+    W, H = 640, 360
+    vsrc = rtc.VideoSource(W, H)
+    vtrack = rtc.LocalVideoTrack.create_video_track("agent-video", vsrc)
+    await room.local_participant.publish_track(vtrack, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_CAMERA))
+
+    async def tone() -> None:  # soft two-note chime, never silent (remote_audio_timeout)
+        sr, n, t = 48000, 480, 0
+        while True:
+            hz = 440 if (t // sr) % 2 == 0 else 554
+            data = struct.pack(f"<{n}h", *(int(2500 * math.sin(2 * math.pi * hz * (t + i) / sr)) for i in range(n)))
+            t += n
+            await asrc.capture_frame(rtc.AudioFrame(data, sr, 1, n))
+
+    async def card() -> None:  # warm card with a moving bar so motion is obvious on the iPad
+        base = np.empty((H, W, 4), dtype=np.uint8)
+        base[...] = (246, 241, 233, 255)
+        n = 0
+        while True:
+            img = base.copy()
+            x = (n * 12) % (W - 60)
+            img[150:210, x:x + 60] = (200, 72, 59, 255)
+            vsrc.capture_frame(rtc.VideoFrame(W, H, rtc.VideoBufferType.RGBA, img.tobytes()))
+            n += 1
+            await asyncio.sleep(0.1)
+
+    bg = [asyncio.create_task(tone()), asyncio.create_task(card())]
+    log(f"agent stand-in ready in {room_name} (audio tone + camera card)")
+
+    # --- call observer
+    async def observe(call_id: str) -> None:
+        seen: set = set()
+        active_at = None
+        terminal = {"ended", "failed", "completed", "canceled", "cancelled", "declined", "no_answer", "rejected"}
+        while True:
+            await asyncio.sleep(1)
+            _, r = await asyncio.to_thread(req, "GET", f"/calls/{call_id}")
+            d = dig(r, "data") or {}
+            for e in d.get("facetime_call_events") or []:
+                if e["id"] not in seen:
+                    seen.add(e["id"])
+                    pl = {k: v for k, v in (e.get("payload") or {}).items() if not k.startswith("__")}
+                    log(f"CHERT event {e['event_type']} src={e['source']} at={e['created_at'][11:23]} {mask(json.dumps(pl))[:200]}")
+            st = d.get("status")
+            if st == "active" and active_at is None:
+                active_at = time.time()
+            if st in terminal:
+                log(f"CHERT call {st} terminal={d.get('terminal_reason')}/{d.get('terminal_detail')} media={d.get('media_status')}")
+                state["done"].set()
+                return
+            if active_at and time.time() - active_at > active_s:
+                code, _ = await asyncio.to_thread(req, "POST", f"/calls/{call_id}/end", {}, f"diag-in-end-{int(time.time())}")
+                log(f"{active_s}s active reached: END HTTP {code}")
+                active_at = time.time() + 3600  # do not repeat
+
+    # --- webhook
+    async def hook(request: web.Request) -> web.Response:
+        rx = time.time()
+        raw = await request.read()
+        try:
+            ev = json.loads(raw or b"{}")
+        except Exception:
+            ev = {}
+        typ = ev.get("type")
+        data = ev.get("data") or {}
+        sig = [h for h in request.headers if "sig" in h.lower() or "chert" in h.lower()]
+        log(f"WEBHOOK {request.method} type={typ} call={data.get('call_id')} media={data.get('media')} headers={sig} keys={sorted(ev)[:12]}")
+        if typ == "call.incoming":
+            if state["call_id"]:
+                log("second incoming while a call is in progress: declining")
+                return web.json_response({"action": "decline"})
+            bridge = f"diag-bridge-{int(rx)}"
+            bridge_ids.add(bridge)
+            state["call_id"] = data.get("call_id")
+            state["accepted_at"] = time.time()
+            body = {"action": "accept", "livekit_url": os.environ["LIVEKIT_URL"],
+                    "participant_token": tok(bridge, 900), "remote_participant_identity": agent_id}
+            log(f"ACCEPT sent {1000 * (time.time() - rx):.0f} ms after receipt (bridge identity {bridge})")
+            if state["call_id"]:
+                asyncio.create_task(observe(state["call_id"]))
+            return web.json_response(body)
+        if typ:
+            log(f"webhook event payload: {mask(json.dumps(data))[:300]}")
+        return web.json_response({"ok": True})
+
+    async def health(_: web.Request) -> web.Response:
+        return web.Response(text="ok")
+
+    app = web.Application()
+    app.router.add_post(hook_path, hook)
+    app.router.add_get(hook_path, health)
+    app.router.add_get("/healthz", health)
+    runner = web.AppRunner(app, access_log=None)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", port).start()
+    log(f"webhook receiver listening on :{port}{hook_path}; waiting up to {max_min:.0f} min for a call")
+
+    try:
+        await asyncio.wait_for(state["done"].wait(), timeout=max_min * 60)
+    except asyncio.TimeoutError:
+        log("no call arrived before MAX_MIN; exiting")
+    await asyncio.sleep(2)
+
+    log("=== RESULT ===")
+    log("bridge identities:", sorted(bridge_ids) or "none (no call.incoming received)")
+    log("caller video tracks:", json.dumps({k: {kk: vv for kk, vv in v.items() if kk != 'first_at'} for k, v in video_stats.items()}) if video_stats else "NONE RECEIVED")
+    for k, v in video_stats.items():
+        if v["first_at"] and state["accepted_at"]:
+            log(f"  {k}: first frame {v['first_at'] - state['accepted_at']:.1f}s after accept")
+    log("caller audio (frame counts):", audio_frames or "NONE RECEIVED")
+    if state["jpeg"] and os.environ.get("GEMINI_API_KEY"):
+        try:
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=os.environ["GEMINI_API_KEY"], http_options=types.HttpOptions(timeout=20_000))
+            r = await asyncio.to_thread(
+                client.models.generate_content, model="gemini-3.5-flash-lite",
+                contents=[types.Part.from_bytes(data=state["jpeg"], mime_type="image/jpeg"),
+                          "Describe this video-call frame in one sentence: is there a person, a cup or mug, any call overlay?"])
+            log("gemini on one caller frame:", (r.text or "").strip()[:300])
+        except Exception as e:
+            log(f"gemini skipped: {type(e).__name__}: {str(e)[:150]}")
+    state["jpeg"] = None
+    for t in bg:
+        t.cancel()
+    await runner.cleanup()
+    await room.disconnect()
+    async with api.LiveKitAPI(lk_http(), key, secret) as lk:
+        try:
+            await lk.room.delete_room(api.DeleteRoomRequest(room=room_name))
+        except Exception:
+            pass
+    ok, why = await asyncio.to_thread(gate)
+    log("line after:", why)
 
 
 if __name__ == "__main__":
