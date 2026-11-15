@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import path from "node:path";
+import { recordAxe } from "./a11y-report";
 
 export const SHOTS = path.join(__dirname, "screenshots");
 
@@ -42,6 +43,7 @@ export async function expectAccessible(page: Page, info: TestInfo, state: string
   const serious = res.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   const other = res.violations.filter((v) => !(v.impact === "serious" || v.impact === "critical"));
   const fmt = (v: (typeof res.violations)[number]) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`;
+  recordAxe(info, state, new URL(page.url()).pathname, res);
   const line = `[axe] ${info.project.name} ${state}: ${serious.length} serious/critical, ${other.length} minor/moderate, ${res.passes.length} rules passed`;
   console.log(line);
   for (const v of other) console.log(`   minor: ${fmt(v)}`);
