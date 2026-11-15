@@ -186,7 +186,7 @@
   let watchStream = null, watchOpening = null, watchTimer = null, watchEpoch = 0;
   let watchPosting = false, watchPolling = false;
   const watchVideo = $("watchVideo");
-  $("watchDisclosure").textContent = WHO + "'s helper is keeping an eye on you";
+  $("watchDisclosure").textContent = WHO + "'s helper is keeping an eye on you. " + WHO + " can see a picture.";
 
   async function stopWatch() {
     ++watchEpoch;

@@ -71,7 +71,7 @@ test("kiosk flag gates capture; disclosure and camera stop before a helper joins
   await page.reload();
   await page.clock.runFor(10000);
   await expect.poll(async () => (await testState()).cameras).toBe(1);
-  await expect(page.locator("#watchDisclosure")).toHaveText("Ruth's helper is keeping an eye on you");
+  await expect(page.locator("#watchDisclosure")).toHaveText("Ruth's helper is keeping an eye on you. Ruth can see a picture.");
   await expect(page.locator("#watchDisclosure")).toBeVisible();
   active = false;
   await page.clock.runFor(10000);
