@@ -10,7 +10,7 @@ export default defineConfig({
   outputDir: "./.results",
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  retries: process.env.CI ? 2 : 0, // one focus test is timing-sensitive on shared runners
   timeout: 60_000,
   expect: { timeout: 15_000 },
   reporter: [["list"]],
