@@ -2,11 +2,12 @@
 
 import { Bell, BellSlash, SignOut, TextAa } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useHearth } from "@/lib/store";
-import { Button } from "./ui/button";
+import { Button, buttonClasses } from "./ui/button";
 import { Sheet } from "./ui/sheet";
 
 const LARGE_KEY = "hearth.largeType";
@@ -114,7 +115,11 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Settings">
       <div className="divide-y divide-line">
-        <div className="flex items-center gap-4 pb-5">
+        <div className="pb-5">
+          <Link href="/setup" className={buttonClasses("quiet")} onClick={() => onOpenChange(false)}>Setup</Link>
+          <p className="mt-2 text-sm text-muted">Names, daily fluid target and consent.</p>
+        </div>
+        <div className="flex items-center gap-4 py-5">
           <TextAa aria-hidden className="size-7 shrink-0 text-ink" weight="duotone" />
           <div className="min-w-0 flex-1">
             <p id={largeId} className="font-medium">
