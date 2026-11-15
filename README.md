@@ -5,6 +5,8 @@ Accessibility evidence: [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md) (axe scan
 
 **The call your mum never has to answer.**
 
+[callyourmother.club](https://callyourmother.club) · [Devpost story](docs/DEVPOST.md)
+
 Emory Hacks 2026 · Healthcare track
 
 ## What it does
