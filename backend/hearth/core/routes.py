@@ -377,7 +377,8 @@ async def privacy(request: Request) -> Privacy:
         retention_days_events=RETENTION_DAYS,
         in_transit=["Chert (FaceTime bridge)", "LiveKit Cloud", "Google Gemini"] + ([
             ("While watch mode is on, one still image about every 10 seconds goes to Google's Gemini "
-            "to check she is OK. Images are never stored.")] if s.settings.watch else []),
+            "to check she is OK. Images are never stored: only the latest one is kept in memory, so "
+            "the family can see what was checked, and it is dropped when watch mode ends.")] if s.settings.watch else []),
         consent=r.consent,
         counts={"events": await s.store.count_events(), "checkins": len(await s.store.list_checkins(10000)),
                 "alerts": len(await s.store.list_alerts()), "cue_photos": cue_photos,
@@ -575,6 +576,15 @@ async def watch_state(request: Request) -> Watch:
 @api.post("/watch", response_model=Watch, dependencies=[Depends(require_watch_enabled)])
 async def start_watch(body: WatchRequest, request: Request) -> Watch:
     return request.app.state.watch.start(body.minutes)
+
+
+@api.get("/watch/frame", dependencies=[Depends(require_watch_enabled)])
+async def watch_latest_frame(request: Request) -> Response:
+    """The last frame the watch check looked at (memory only), so the family sees what it saw."""
+    jpeg = request.app.state.watch.latest_frame()
+    if jpeg is None:
+        raise HTTPException(404, "No picture yet.")
+    return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "no-store, private"})
 
 
 @api.delete("/watch", response_model=Watch, dependencies=[Depends(require_watch_enabled)])

@@ -217,3 +217,23 @@ def test_watch_access_log_hides_kiosk_key(endpoint):
     assert _WebhookAccessFilter().filter(record)
     assert "private-kiosk-key" not in record.getMessage()
     assert f"/internal/watch/{endpoint}" in record.getMessage()
+
+
+def test_family_sees_only_the_latest_checked_frame_in_memory(make_client):
+    c = make_client(watch=True)
+    classifier(c)
+    assert c.get("/api/watch/frame").status_code == 404
+    c.post("/api/watch", json={"minutes": 30})
+    assert c.get("/api/watch/frame").status_code == 404
+    assert frame(c).status_code == 200
+    second = JPEG.replace(b"ephemeral", b"newer")
+    assert frame(c, second).status_code == 200
+    r = c.get("/api/watch/frame")
+    assert r.status_code == 200 and r.content == second
+    assert r.headers["content-type"] == "image/jpeg" and "no-store" in r.headers["cache-control"]
+    c.delete("/api/watch")
+    assert c.get("/api/watch/frame").status_code == 404
+
+
+def test_latest_frame_needs_a_family_session(make_client):
+    assert make_client(watch=True, login=False).get("/api/watch/frame").status_code == 401
