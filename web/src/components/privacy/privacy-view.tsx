@@ -145,6 +145,9 @@ export function PrivacyView() {
               ))}
             </ul>
           ) : null}
+          <p className="mt-4 text-muted">
+            During a call, her voice and camera are sent live to Google&apos;s Gemini so the helper can hear and see. Memo stores none of it. On Google&apos;s free tier, Google may use what it receives to improve its products, and people there may review it. Our demo uses a teammate, never a real patient; a real deployment would use the paid tier, which does not do this.
+          </p>
         </Card>
         <Card aria-labelledby="retention-heading">
           <Heading id="retention-heading" icon={<ClockCounterClockwise aria-hidden className="size-6 text-sky-ink" weight="duotone" />}>
