@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from typing import Literal
 
@@ -48,6 +49,18 @@ NOBODY = "__hearth_waiting_for_live__"  # RoomIO links to no one until we say sh
 NO_VIDEO_AFTER = 8.0
 KEYWORD_GRACE = 3.0
 MOTION_MIN = float(os.environ.get("HEARTH_MOTION_MIN", "1.5"))
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except ValueError:
+        return default
+
+
+def hung_up_reason() -> str:
+    """`hung_up` is not in the contract yet: send `error` until HEARTH_REASON_HUNG_UP=1."""
+    return "hung_up" if os.environ.get("HEARTH_REASON_HUNG_UP") == "1" else "error"
 PRELIVE_TIMEOUT = float(os.environ.get("HEARTH_PRELIVE_TIMEOUT", "240"))
 
 
@@ -204,6 +217,15 @@ class HerVideo(VideoInput):
             t.cancel()
 
 
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def current_sentence(buf: str) -> str:
+    """The sentence being spoken now, from its start (the card pages it if it is long)."""
+    parts = [p for p in _SENTENCE_END.split(buf.strip()) if p.strip()]
+    return parts[-1].strip() if parts else ""
+
+
 class CaptionSink(TextOutput):
     """Receives the helper's words as they are spoken (synced to audio) for the card + captions."""
 
@@ -214,7 +236,7 @@ class CaptionSink(TextOutput):
 
     async def capture_text(self, text: str) -> None:
         self._buf += text
-        self._call.card.update(caption=self._buf.strip())
+        self._call.card.update(caption=current_sentence(self._buf))
 
     def flush(self) -> None:
         sentence, self._buf = self._buf.strip(), ""
@@ -246,6 +268,9 @@ class Call:
         self.ending = False
         self.budget: BudgetTimer | None = None
         self._bg: set[asyncio.Task] = set()
+        self.heard_her = False  # any non-empty transcript of her speech since live
+        self.no_answer_ask_s = _env_float("HEARTH_NO_ANSWER_ASK_S", 20.0)
+        self.no_answer_end_s = _env_float("HEARTH_NO_ANSWER_END_S", 40.0)
 
     def spawn(self, coro) -> asyncio.Task:
         t = asyncio.create_task(coro)
@@ -312,6 +337,8 @@ class Call:
     def on_her_transcript(self, text: str, final: bool) -> None:
         if not self.live.is_set() or self.ending:
             return
+        if text.strip():
+            self.heard_her = True
         if final:
             self.spawn(self.api.caption("her", text, True))
         if self.outcome == "concern" or self.keyword_task is not None:
@@ -357,8 +384,33 @@ class Call:
         self.budget = BudgetTimer(self.job.max_seconds, self._budget_warn, self._budget_expire, warn_before=10)
         self.budget.start()
         self.spawn(self._video_check())
+        self.spawn(self.no_answer_watch())
         if her is None:
             self.spawn(self._link_late())
+
+    def nobody_there(self) -> bool:
+        """Auto-answered but no person: she never spoke and no outcome tool was called."""
+        return not self.heard_her and self.last_tool_at == 0.0 and self.outcome is None and not self.ending
+
+    async def no_answer_watch(self) -> None:
+        """The kitchen iPad auto-answers, so an empty kitchen looks like a connected call. Deterministic:
+        ask once at ~20 s, end as no_answer at ~40 s (the core then retries once, then tells Sarah)."""
+        name = self.job.resident.preferred_name
+        await asyncio.sleep(self.no_answer_ask_s)
+        if not self.nobody_there():
+            return
+        log.info("no answer: nothing heard %.0fs after live; asking once", self.no_answer_ask_s)
+        if self.session:
+            self.session.generate_reply(instructions=f'Say exactly: "{name}, are you there?" Then wait.')
+        await asyncio.sleep(max(0.0, self.no_answer_end_s - self.no_answer_ask_s))
+        if not self.nobody_there():
+            return
+        log.info("no answer: nothing heard %.0fs after live; signing off", self.no_answer_end_s)
+        self.card.update(mode="okay", line="I'll try again a little later")
+        if self.session:
+            self.session.generate_reply(
+                instructions='Say exactly: "I\'ll try again a little later. Goodbye for now." Say nothing else.')
+        await self.finish("no_answer", "no speech heard after live")
 
     async def _link_late(self) -> None:
         her = await self._find_her(timeout=30)
@@ -686,6 +738,8 @@ async def entrypoint(ctx: JobContext) -> None:
             if not call.ending:
                 by_outcome = {"confirmed": "done", "refused": "refused", "concern": "concern"}
                 reason = by_outcome.get(call.outcome or "", "error")
+                if reason == "error" and "PARTICIPANT_DISCONNECTED" in str(getattr(ev, "reason", "")):
+                    reason = hung_up_reason()
                 call.spawn(call.finish(reason, f"session closed: {getattr(ev, 'reason', '')}"[:200], False))
 
         session.on("close", _on_close)

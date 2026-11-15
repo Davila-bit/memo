@@ -92,10 +92,20 @@ def _fit_lines(draw, text: str, font_name: str, sizes: tuple[int, ...], max_w: i
     return f, _wrap(draw, text, f, max_w, max_lines), sizes[-1]
 
 
-def _tail_lines(draw, text: str, font, max_w: int, max_lines: int) -> list[str]:
-    """The LAST max_lines of wrapped text: the caption shows the newest words."""
-    lines = _wrap(draw, text, font, max_w, 99)
-    return lines[-max_lines:]
+CAPTION_PX = 44
+_CAPTION_DRAW = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+
+
+def caption_page(text: str, max_w: int = SAFE_W - 20, lines_per_page: int = 2) -> list[str]:
+    """The page of the current sentence that holds the newest words, from the START of that page.
+    Wrapped lines are grouped in fixed pages of two: lines 1-2, then 3-4 as speech proceeds. The
+    start of a sentence is never dropped while it is still on its page."""
+    font = _font("Inter-SemiBold.ttf", CAPTION_PX)
+    lines = _wrap(_CAPTION_DRAW, text, font, max_w, 99)
+    if not lines:
+        return []
+    page = (len(lines) - 1) // lines_per_page
+    return lines[page * lines_per_page:(page + 1) * lines_per_page]
 
 
 def _draw_check(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, color) -> None:
@@ -212,8 +222,8 @@ def render(state: CardState) -> Image.Image:
     # --- caption strip: the helper's current sentence, large, high contrast
     d.rectangle((0, caption_top, W, H), fill=INK)
     if state.caption:
-        cf = _font("Inter-SemiBold.ttf", 44)
-        lines = _tail_lines(d, state.caption, cf, SAFE_W - 20, 2)
+        cf = _font("Inter-SemiBold.ttf", CAPTION_PX)
+        lines = caption_page(state.caption)
         y = caption_top + (H - caption_top - len(lines) * 54) // 2
         for ln in lines:
             d.text((SAFE_X0 + 10, y), ln, font=cf, fill=PAPER)

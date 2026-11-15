@@ -243,3 +243,124 @@ def test_visual_confirmation_needs_moving_video(video, ok: bool) -> None:
         assert conf == 0.95 and ev == "held up blue mug, two drinks" and c.clamped is None
     else:
         assert conf <= 0.4 and ev.startswith("Said:") and c.clamped in ("still", "no_video")
+
+
+# ------------------------------------------------------------------ captions: sentence start + paging
+
+
+def test_caption_shows_current_sentence_from_its_start() -> None:
+    from hearth_agent.cuecard import caption_page
+    from hearth_agent.worker import current_sentence
+
+    spoken = "Hello Margaret, it's Sarah's helper. Could you please hold up your blue mug so I can see it?"
+    cur = current_sentence(spoken)
+    assert cur == "Could you please hold up your blue mug so I can see it?"
+    lines = caption_page(cur)
+    assert 1 <= len(lines) <= 2 and lines[0].startswith("Could you please")
+    assert " ".join(lines) == cur  # nothing cut off
+    # mid-sentence (words still arriving) also starts at the beginning of the sentence
+    assert caption_page(current_sentence("Hello Margaret, it's Sarah's helper. Could you please"))[0] == "Could you please"
+    img = render(CardState(mode="asking", line="Time for some water, Margaret", caption=cur))
+    assert img.size == (W, H)
+
+
+def test_caption_pages_long_sentence() -> None:
+    from hearth_agent.cuecard import caption_page
+
+    words = ("When you are ready, Margaret, could you please pick up your blue mug from the table and hold "
+             "it up high so that I can see it clearly on my screen here, thank you very much")
+    full = caption_page(words, lines_per_page=99)
+    assert len(full) >= 3
+    first = caption_page(" ".join(full[:2]))
+    assert first == full[:2]  # page 1 = lines 1-2
+    assert caption_page(" ".join(full[:3])) == [full[2]]  # line 3 arrives: page 2 starts at line 3
+    assert caption_page(" ".join(full[:4])) == full[2:4]  # not a rolling tail (which would be 2-3)
+
+
+# ------------------------------------------------------------------ nobody there = no answer
+
+
+class _FakeSession:
+    def __init__(self) -> None:
+        self.said: list[str] = []
+        self.agent_state = "listening"
+
+    def generate_reply(self, instructions: str = "") -> None:
+        self.said.append(instructions)
+
+
+def _watch_call(ask: float, end: float):
+    c = _call(_FakeVideo(True, 0.0))
+    c.session = _FakeSession()
+    c.no_answer_ask_s, c.no_answer_end_s = ask, end
+    ended: list[str] = []
+
+    async def fake_finish(reason: str, detail: str = "", wait_speech: bool = True) -> None:
+        ended.append(reason)
+        c.ending = True
+
+    c.finish = fake_finish  # type: ignore[method-assign]
+    return c, ended
+
+
+async def test_no_answer_asks_then_ends() -> None:
+    c, ended = _watch_call(0.05, 0.12)
+    t = asyncio.create_task(c.no_answer_watch())
+    await asyncio.sleep(0.08)
+    assert len(c.session.said) == 1 and "Margaret, are you there?" in c.session.said[0]
+    await t
+    assert ended == ["no_answer"] and "try again a little later" in c.session.said[1]
+    assert c.card.state.mode == "okay"
+
+
+async def test_no_answer_stops_when_she_speaks() -> None:
+    c, ended = _watch_call(0.05, 0.12)
+    c.live.set()
+    t = asyncio.create_task(c.no_answer_watch())
+    await asyncio.sleep(0.08)
+    c.heard_her = True  # she answered "yes, I'm here"
+    await t
+    assert ended == [] and len(c.session.said) == 1
+
+
+async def test_no_answer_never_fires_after_a_tool() -> None:
+    c, ended = _watch_call(0.03, 0.06)
+    c.last_tool_at = 1.0  # e.g. the model reported a refusal
+    await c.no_answer_watch()
+    assert ended == [] and c.session.said == []
+
+
+def test_hung_up_reason_flag(monkeypatch) -> None:
+    from hearth_agent.worker import hung_up_reason
+
+    monkeypatch.delenv("HEARTH_REASON_HUNG_UP", raising=False)
+    assert hung_up_reason() == "error"
+    monkeypatch.setenv("HEARTH_REASON_HUNG_UP", "1")
+    assert hung_up_reason() == "hung_up"
+
+
+# ------------------------------------------------------------------ clean exit: one end only
+
+
+async def test_end_not_resent_after_cancel(client: httpx.AsyncClient) -> None:
+    """The core hangs up on the first `end`, which can cancel us mid-request: never resend on job close."""
+    a = HearthApi("http://stub", "c7", token="dev-internal", client=client)
+    orig = a._post
+
+    async def slow_post(path, body):
+        await asyncio.sleep(1)
+        return await orig(path, body)
+
+    a._post = slow_post  # type: ignore[method-assign]
+    t = asyncio.create_task(a.end("time_budget"))
+    await asyncio.sleep(0.05)
+    t.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await t
+    assert a.ended and await a.end("error") is None  # the shutdown hook sends nothing
+
+
+async def test_hung_up_body_sent_when_flagged(client: httpx.AsyncClient) -> None:
+    a = HearthApi("http://stub", "c8", token="dev-internal", client=client)
+    # the stub validates against today's contract, so `hung_up` is rejected there (422) -> logged, None
+    assert await a.end("hung_up") is None and not a.ended

@@ -33,6 +33,8 @@ SCENARIOS: dict[str, dict] = {
     "novideo": {"lines": ["cup", "drinking", "cup"], "video": False, "image": None},
     "still": {"lines": ["cup", "drinking", "cup", "drinking"], "video": True,
               "image": os.path.join(HERE, "fixtures", "kitchen_mug.jpg")},
+    # auto-answered, nobody there: silence + a static frame -> no_answer at ~40 s
+    "empty": {"lines": [], "video": True, "image": None},
     "budget": {"lines": ["chat", "hello", "chat", "hello", "chat", "hello", "chat"], "video": True, "image": None},
 }
 

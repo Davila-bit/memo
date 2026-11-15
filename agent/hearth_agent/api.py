@@ -93,13 +93,16 @@ class HearthApi:
         if self.ended:
             return None
         self.ended = True
-        res: ToolResult | None = None
-        try:
-            res = await self._post("end", ToolEndCheckin(reason=reason, detail=detail[:200]))  # type: ignore[arg-type]
-            return res
-        finally:
-            if res is None:
-                self.ended = False  # not delivered (failed or cancelled): the shutdown hook tries again
+        if reason == "hung_up":  # TODO(contract): not in ToolEndCheckin.reason yet (HEARTH_REASON_HUNG_UP=1)
+            body = ToolEndCheckin.model_construct(reason=reason, detail=detail[:200])
+        else:
+            body = ToolEndCheckin(reason=reason, detail=detail[:200])  # type: ignore[arg-type]
+        # Cancelled mid-request? The core hangs up the room as soon as it gets `end`, which shuts the
+        # job down; the request has arrived, so stay `ended` and never resend it on job close.
+        res = await self._post("end", body)
+        if res is None:
+            self.ended = False  # both attempts really failed: the shutdown hook may try once more
+        return res
 
     async def get_checkin(self) -> Checkin | None:
         try:
