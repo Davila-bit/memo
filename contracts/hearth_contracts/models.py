@@ -38,7 +38,7 @@ CheckinOutcome = Literal[
 ]
 
 EventKind = Literal["drink", "meal", "med", "refused", "missed", "concern", "note"]
-EventSource = Literal["facetime", "kiosk", "manual", "mock", "seed"]
+EventSource = Literal["facetime", "inbound", "kiosk", "manual", "mock", "seed"]
 
 Amount = Literal["sip", "some", "most", "all"]
 
@@ -125,7 +125,7 @@ class Checkin(Model):
     status: CheckinStatus
     outcome: CheckinOutcome | None = None
     attempt: int = 1  # 2 = the automatic retry after a no-answer
-    trigger: Literal["schedule", "manual", "retry"] = "manual"
+    trigger: Literal["schedule", "manual", "retry", "inbound"] = "manual"
     schedule_item_id: str | None = None
     cue_id: str | None = None
     room: str  # LiveKit room name, "checkin-<id>" (kiosk: "kiosk-<device>")
@@ -360,6 +360,7 @@ class AgentJob(Model):
     checkin_id: str
     kind: CheckinKind
     transport: Transport
+    inbound: bool = False
     resident: Resident
     cue: Cue | None = None
     api_base: str  # "http://127.0.0.1:8000"

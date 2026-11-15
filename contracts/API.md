@@ -41,6 +41,7 @@ scripts/                       ws (run in workspace), probes, dev-up
 | `HEARTH_TRANSPORT` = `facetime` \| `kiosk` \| `mock` (default `mock`) | calls | – |
 | `HEARTH_PASSCODE` (default `hearth-demo`), `HEARTH_SESSION_SECRET` | core | dev defaults + a log warning |
 | `HEARTH_INTERNAL_TOKEN` | core, agent | dev default `dev-internal` + a log warning |
+| `HEARTH_CHERT_HOOK_KEY` | core | unset: all Chert webhook requests return 404; generated once by `scripts/dev-up` |
 | `HEARTH_API_BASE` (default `http://127.0.0.1:8000`) | calls → agent job | – |
 | `TIGER_DATABASE_URL` | core | in-memory store, seeded |
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | calls, agent | only `mock` transport works |
@@ -97,6 +98,12 @@ defaults to `gemini-3.5-flash-lite` (0.5 s).
 | `GET /api/kiosk/token?device=` | → `KioskToken` | for the `/kiosk` page; needs `?key=` = `HEARTH_INTERNAL_TOKEN` instead of a session |
 
 Errors: `{"detail": "plain sentence"}` with the right status code.
+
+### Webhooks
+
+| Method & path | Body → Response | Authentication |
+|---|---|---|
+| `POST /hooks/chert/{key}` | Chert event → accept/decline for `call.incoming`; `{ok: true}` otherwise | constant-time comparison with `HEARTH_CHERT_HOOK_KEY`; wrong or unset key → 404; no session |
 
 `HearthEvent.for_kind: CheckinKind | null` (default `null`) identifies what a `refused`, `missed`,
 `concern` or `note` event was for. `Resident.phone: string | null` (default `null`) is her phone
@@ -168,6 +175,36 @@ POST /api/checkins ─► queued ─► CallService.start(checkin, job, callback
 - The agent never dials 911 and never gives medical advice. `called_911` is only ever set by the
   daughter tapping a `tel:` link in her app.
 
+### Inbound FaceTime
+
+Configure the line's integration as `customer_decides`, with no default Assistant, and point its
+unsigned webhook at the URL in `.cache/run/chert-webhook-url` (generated when a public API URL is
+available). The path key authenticates this route; Chert signature verification is not implemented.
+Never publish this URL or log its key. If webhook signing is enabled, use a receiver that verifies it.
+
+For `{"type":"call.incoming","data":{"call_id":"…", "line_id":"…", "media":{"audio":true,"video":true}}}`,
+the core declines when busy or FaceTime is unavailable. Otherwise it creates a FaceTime check-in
+with `Checkin.trigger = "inbound"` and dispatches `AgentJob.inbound = true` (default `false`). Kind
+and cue come from the nearest enabled schedule time within 90 minutes of the demo clock, including
+adjacent days; otherwise use `drink` and its default cue. Events from this check-in use
+`EventSource = "inbound"` so the timeline can show "She called"; transport remains `facetime`.
+
+`CallService.accept_inbound(checkin, job, cb, call_id) -> dict` returns
+`{action: "accept", livekit_url: "wss://…", participant_token: "<fresh room-scoped bridge JWT>",
+remote_participant_identity: "<agent identity>"}` or raises `CallsUnavailable`. It prepares room and
+dispatch concurrently, discovers the participant identity without waiting for tracks (up to 2.5 s,
+then the configured agent name as fallback), and bounds preparation to 3.5 s. The core bounds the
+decision work to 4 s, leaving headroom for Chert's 5 s reply deadline. Errors return a 200 decline
+and finish the check-in as `error`; cleanup continues in the background. Duplicate `call_id`s share
+the same decision, including declines, for the API process lifetime; the cache is in memory and is
+reset on restart. Tokens are never persisted or included in check-in responses.
+
+Acceptance starts the existing placed-call state machine: ringing immediately, then `active` plus
+worker `bridge_ready` before setting `hearth_live`, followed by the same budget, end and cleanup.
+An inbound call that never becomes ready within `HEARTH_RING_SECONDS` finishes as
+`("error", "inbound call never became ready")`. Other webhook event types are acknowledged without
+affecting readiness. No real FaceTime call has yet verified this path.
+
 ## 8. Agent (`agent/`)
 
 - livekit-agents worker registered as `hearth-agent`, **explicit dispatch only** (no auto-join).
@@ -176,7 +213,7 @@ POST /api/checkins ─► queued ─► CallService.start(checkin, job, callback
   (`chert-bridge-` on FaceTime: tracks `facetime-remote-audio` / `facetime-remote-video`; `kiosk-` on
   the kiosk page). Ignore every other participant.
 - The agent publishes exactly one audio track and one camera video track (the cue card), both from
-  its own participant, **before** the call is placed (livekit-agents normally publishes audio only
+  its own participant, **before** an outbound call is placed (livekit-agents normally publishes audio only
   after a remote participant joins: force it early), and stays silent until live.
 - **The "live" signal is ours, not Chert's.** In bring-your-own-room mode nothing writes
   `chert_bridge_ready` into the room. `CallService` decides when the call is live (FaceTime: the call
@@ -188,6 +225,7 @@ POST /api/checkins ─► queued ─► CallService.start(checkin, job, callback
   10 s of `bridge_ready` (`remote_audio_timeout`).
 - `CallService` places the call only after `list_participants` shows the agent with one unmuted audio
   track and one video track (poll up to 20 s), and mints the bridge token after that.
+  Inbound replies do not wait for published tracks; they use the handshake in §7.
 - Cue card (video out, 1280×720): paper background, her object photo, one very large line, live
   caption strip, state changes on tool calls (asking → watching → "Thank you ✓" / "Sarah is coming").
 - Tools map 1:1 to §6: `confirm_drink`, `confirm_meal`, `confirm_med`, `report_refusal`,

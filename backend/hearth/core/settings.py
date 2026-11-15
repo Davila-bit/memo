@@ -37,6 +37,7 @@ class Settings:
     kiosk_device: str = "kitchen"
     vapid_public_key: str | None = None
     max_call_seconds: int = 90
+    chert_hook_key: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -75,4 +76,5 @@ class Settings:
             s.media_dir = Path(env["HEARTH_MEDIA_DIR"])
         s.kiosk_device = env.get("HEARTH_KIOSK_DEVICE", "kitchen") or "kitchen"
         s.vapid_public_key = env.get("VAPID_PUBLIC_KEY") or None
+        s.chert_hook_key = env.get("HEARTH_CHERT_HOOK_KEY") or None
         return s

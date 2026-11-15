@@ -20,7 +20,7 @@ from .auth import Auth
 from .checkins import CheckinService
 from .clock import Bus, DemoClock
 from .fallbacks import KeywordSearch, LogNotifier, MockCallService, RegexRedactor, TemplateDigest
-from .routes import api, internal, live, public
+from .routes import api, hooks, internal, live, public
 from .seed import seed
 from .settings import Settings
 from .store import MemoryStore, Store
@@ -29,7 +29,21 @@ log = logging.getLogger("hearth.core")
 STATUSES = {"ok", "missing_key", "error", "mock"}
 
 
+class _WebhookAccessFilter(logging.Filter):
+    """The webhook path contains a credential; Uvicorn normally prints the entire URL."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) == 5:
+            client, method, path, version, status = record.args
+            if isinstance(path, str) and path.startswith("/hooks/chert/"):
+                record.args = (client, method, "/hooks/chert/<redacted>", version, status)
+        return True
+
+
 def _setup_logging() -> None:
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, _WebhookAccessFilter) for f in access.filters):
+        access.addFilter(_WebhookAccessFilter())
     root = logging.getLogger("hearth")
     root.setLevel(logging.INFO)
     if not root.handlers and not logging.getLogger().handlers:
@@ -200,6 +214,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=True,
                            allow_methods=["*"], allow_headers=["*"])
     app.include_router(public)
+    app.include_router(hooks)
     app.include_router(api)
     app.include_router(internal)
     app.include_router(live)
