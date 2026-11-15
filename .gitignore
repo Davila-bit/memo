@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.venv/
+__pycache__/
+*.pt
+*.onnx
+.next/
+*.log
+.DS_Store
+# event slides (66 MB), keep out of git
+EmoryHacks2026*.pdf
+# isolated gh config for the team account
+.gh/
