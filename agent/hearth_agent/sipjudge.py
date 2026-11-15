@@ -192,14 +192,14 @@ def combine(confidence: float, evidence: str, v: Verdict | None) -> tuple[float,
     """The live model's confidence, adjusted by the frame check. Returns (confidence, evidence, why).
     - The frame check saw lift-to-mouth AND tilt: raise to at least 0.8 (it is a real observation).
     - It is sure there was no drink although the cup was at her mouth (a held mug): cap at 0.45, i.e. "not sure, ask again",
-      unless HEARTH_VERIFY_VETO=0.
+      only when HEARTH_VERIFY_VETO=1 (off by default: a wrong "no" must not un-count a real sip).
     - No verdict, or nothing decisive: unchanged."""
     if v is None:
         return confidence, evidence, "none"
     if v.drank and v.confidence >= 0.6:
         note = " · frame check: cup to mouth and tilted" + (", then lowered" if v.lowered else "")
         return max(confidence, 0.8), (evidence + note)[:240], "raised" if confidence < 0.8 else "agreed"
-    veto = os.environ.get("HEARTH_VERIFY_VETO", "1").strip() not in {"0", "false", "off"}
+    veto = os.environ.get("HEARTH_VERIFY_VETO", "0").strip() not in {"0", "false", "off"}  # off: the check may raise, never lower
     if veto and not v.drank and v.at_mouth and not v.tilted and v.confidence >= 0.6:
         return min(confidence, 0.45), evidence, "held_not_tilted"
     return confidence, evidence, "undecided"
