@@ -177,12 +177,16 @@ test.describe("today", () => {
     await shot(page, info, "12-today-large-type");
   });
 
-  test("demo clock moves time on", async ({ page }) => {
+  test("demo clock moves time on and back", async ({ page }) => {
     await page.getByRole("button", { name: /Demo clock/ }).click();
     const dialog = page.getByRole("dialog", { name: "Demo clock" });
     await dialog.getByRole("button", { name: "+1 h" }).click();
     await expect(page.getByText("Next: water at 6:00 pm")).toBeVisible();
-    await dialog.getByRole("button", { name: "Reset", exact: true }).click();
+    await dialog.getByRole("button", { name: "−1 h" }).click();
+    await expect(page.getByText("Next: water at 3:30 pm")).toBeVisible();
+    await dialog.getByRole("button", { name: "+1 h" }).click();
+    await expect(page.getByText("Next: water at 6:00 pm")).toBeVisible();
+    await dialog.getByRole("button", { name: "Back to now", exact: true }).click();
     await expect(page.getByText("Next: water at 3:30 pm")).toBeVisible();
   });
 });
