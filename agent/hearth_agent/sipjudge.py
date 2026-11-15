@@ -164,7 +164,10 @@ async def judge(frames: list[tuple[float, bytes]], obj: str = "a cup", timeout: 
         temperature=0.0, response_mime_type="application/json", response_schema=SCHEMA,
         media_resolution=gt.MediaResolution.MEDIA_RESOLUTION_MEDIUM,
     )
-    model = os.environ.get("HEARTH_VERIFY_MODEL", "gemini-3.8-flash")
+    model = os.environ.get("HEARTH_VERIFY_MODEL", "gemini-3.5-flash-lite")
+    level = os.environ.get("HEARTH_VERIFY_THINKING", "minimal").strip().upper()
+    if level and level != "DEFAULT":
+        cfg.thinking_config = gt.ThinkingConfig(thinking_level=getattr(gt.ThinkingLevel, level, gt.ThinkingLevel.MINIMAL))
     try:
         r = await asyncio.wait_for(
             client.aio.models.generate_content(model=model, contents=parts, config=cfg),
