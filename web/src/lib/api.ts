@@ -22,6 +22,8 @@ import type {
   ScheduleItem,
   StartCheckinRequest,
   Today,
+  Watch,
+  WatchRequest,
   Week,
 } from "./contracts";
 import { ApiError, notifyUnauthorized } from "./api-error";
@@ -44,6 +46,9 @@ export interface HearthApi {
   logout(): Promise<void>;
   me(): Promise<Me>;
   today(): Promise<Today>;
+  watch(): Promise<Watch>;
+  startWatch(body: WatchRequest): Promise<Watch>;
+  stopWatch(): Promise<Watch>;
   week(): Promise<Week>;
   events(q?: { kind?: EventKind; since?: string; limit?: number }): Promise<HearthEvent[]>;
   addEvent(body: ManualEventRequest): Promise<HearthEvent>;
@@ -117,6 +122,9 @@ const realApi: HearthApi = {
   logout: () => request("POST", "/api/auth/logout", undefined, { auth: false }),
   me: () => request("GET", "/api/me"),
   today: () => request("GET", "/api/today"),
+  watch: () => request("GET", "/api/watch"),
+  startWatch: (body) => request("POST", "/api/watch", body),
+  stopWatch: () => request("DELETE", "/api/watch"),
   week: () => request("GET", "/api/week"),
   events: (q = {}) => request("GET", `/api/events${qs(q)}`),
   addEvent: (body) => request("POST", "/api/events", body),

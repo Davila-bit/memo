@@ -38,6 +38,7 @@ scripts/                       ws (run in workspace), probes, dev-up
 
 | Name | Used by | Missing means |
 |---|---|---|
+| `HEARTH_WATCH` (default `0`) | core, kiosk | only exact `1` enables watch mode; off hides all watch UI and camera capture |
 | `HEARTH_TRANSPORT` = `facetime` \| `kiosk` \| `mock` (default `mock`) | calls | – |
 | `HEARTH_PASSCODE` (default `hearth-demo`), `HEARTH_SESSION_SECRET` | core | dev defaults + a log warning |
 | `HEARTH_INTERNAL_TOKEN` | core, agent | dev default `dev-internal` + a log warning |
@@ -75,6 +76,9 @@ defaults to `gemini-3.5-flash-lite` (0.5 s).
 | `POST /api/auth/login` | `LoginRequest` → `Me` (+ `hearth_session` cookie, HttpOnly, SameSite=Lax) | passcode sign-in; 401 on a wrong code |
 | `POST /api/auth/logout` | → 204 | |
 | `GET /api/me` | → `Me` | 401 when signed out |
+| `GET /api/watch` | → `Watch` | in-memory state; off returns `enabled=false, active=false` |
+| `POST /api/watch` | `WatchRequest` → `Watch` | start/restart; 404 when disabled |
+| `DELETE /api/watch` | → `Watch` | stop; 404 when disabled |
 | `GET /api/today` | → `Today` | timeline, hydration, next check-in, open alerts |
 | `GET /api/week` | → `Week` | 7 days from Tiger continuous aggregates |
 | `GET /api/events?kind=&since=&limit=` | → `HearthEvent[]` | newest first |
@@ -106,6 +110,8 @@ questions retain the planned/NL search and Python-computed answers (`exact`). Un
 questions use Typesense keyword + embedding search only with `TYPESENSE_HYBRID=1` and a ready embedding field (`related`), with the answer
 "Here are the closest moments I found." and no yes/no inference. `engine` remains `typesense`.
 
+`Me.watch: bool` is next to `voice`, true only with server `HEARTH_WATCH=1` (mock false by default).
+
 `Me` (login and `GET /api/me`) includes `voice: bool`: true only when the enabled search voice model is ready. The web hides its microphone and audio notice otherwise. Web mock mode returns true.
 
 `AskRequest` is `{q?: string, voice_wav_b64?: string | null}`. Text questions must contain
@@ -117,6 +123,33 @@ base64-encoded mono, 16 kHz,
 contains that transcription. Audio stays in memory and is never stored or logged by Memo;
 it is sent in a POST body to Typesense, never a URL. Voice validation, missing search
 configuration, or unavailable transcription return HTTP 400 with a plain sentence.
+
+
+### Optional watch mode
+
+`WatchNote = {ts: datetime, status: "ok" | "unusual" | "concern", note: string}`
+(redacted, at most 10 words). `Watch = {enabled: bool, active: bool, until: datetime | null,
+notes: WatchNote[]}` (oldest first, last 30 only). `WatchRequest = {minutes: 30 | 120}`.
+State is process-local and resets on restart; expiry follows the app's demo clock.
+The family polls every 5 seconds; no new WebSocket message types.
+
+`GET /internal/watch/state?key=` → `{active: bool}` (false during a live check-in).
+`POST /internal/watch/frame?key=` takes raw `image/jpeg`, maximum 300 KiB, and returns `Watch`.
+Both reuse the exact `/api/kiosk/token` query-key check (`HEARTH_INTERNAL_TOKEN`), with 404
+when watch is disabled and 401 for a wrong key. Inactive watch/live check-in/in-flight frame
+returns 409, oversize 413, wrong media type 415, invalid JPEG markers 400.
+The kiosk polls every 10 seconds only when the server flag is on; while active and idle it
+shows the assistant disclosure, takes video-only stills (512 px long side, JPEG 0.7), and
+releases all watch tracks before a check-in or when watch stops. Frames exist only in request
+memory and go to the existing Gemini text model (8-second timeout); never disk, logs, database,
+index or cache. Missing keys, invalid classification or timeouts store nothing.
+
+Two consecutive concern results raise one urgent concern per watch session through the existing
+check-in concern persistence/notifier path: title `<family_name_for_her> may have fallen`, detail
+is the redacted note, category `on_floor_or_out_of_view`. Other results reset the counter;
+repeated identical notes are omitted. More than five minutes without a visible person adds
+one unusual `Out of view for a while` note per session, without an alert. Privacy disclosure
+about Gemini still images is included only when the flag is on.
 
 
 ### Webhooks

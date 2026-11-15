@@ -568,11 +568,17 @@ class CheckinService:
                           said=quote or None)
             upd: dict[str, Any] = {"outcome": "concern", "summary": "The check-in noticed something unusual"}
             await self._save_checkin(c.model_copy(update=upd))
-        await self.add_event(ev, c.kind)
-        await self._save_alert(alert)
-        await self._notify(alert.title, alert.detail, urgent=True, url=f"/?alert={alert.id}", actions=CONCERN_ACTIONS)
+        await self.raise_concern(ev, alert, c.kind)
         return ToolResult(ok=True, event_id=ev.id,
                           say=f"I'm going to get {r.daughter_name} for you right now. Stay where you are.")
+
+    async def raise_concern(self, event: HearthEvent, alert: Alert,
+                            for_kind: CheckinKind | None = None) -> None:
+        """Shared concern path: structured evidence, live alert and urgent family notification."""
+        await self.add_event(event, for_kind)
+        await self._save_alert(alert)
+        await self._notify(alert.title, alert.detail, urgent=True,
+                           url=f"/?alert={alert.id}", actions=CONCERN_ACTIONS)
 
     async def end_checkin(self, checkin_id: str, body: ToolEndCheckin) -> ToolResult:
         c = await self._get(checkin_id)
