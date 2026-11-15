@@ -341,7 +341,7 @@ class TypesenseSearch:
                         or not _fields_ok(gen.get("filter_by", "")) or not _sort_ok(gen.get("sort_by", ""))):
                     tried.append("nl:unusable")
                 else:
-                    events, snips = self._hits(res, plan)
+                    events, snips = self._hits(res, plan, now)
                     if events:
                         return events, snips, "typesense_nl"
                     # Typesense 30.2 returns no hits from an NL query whose generated filter has `&&`
@@ -351,7 +351,7 @@ class TypesenseSearch:
                     if "&&" in (aug.get("filter_by") or ""):
                         res = await self._run({"q": aug.get("q") or "*", "filter_by": aug.get("filter_by"),
                                                "sort_by": aug.get("sort_by") or "ts_unix:desc"})
-                        events, snips = self._hits(res, plan)
+                        events, snips = self._hits(res, plan, now)
                         if events:
                             return events, snips, "typesense_nl_rerun"
                     tried.append("nl:empty")
@@ -364,7 +364,7 @@ class TypesenseSearch:
         if params:
             self.last_debug["gemini"] = params
             res = await self._run(params)
-            events, snips = self._hits(res, plan)
+            events, snips = self._hits(res, plan, now)
             if events:
                 return events, snips, "gemini_translate"
             tried.append("gemini:empty")
@@ -373,10 +373,11 @@ class TypesenseSearch:
         params = {"q": plan.text, "filter_by": plan_filter(plan), "sort_by": "ts_unix:desc"}
         self.last_debug["plan"] = params
         res = await self._run(params)
-        events, snips = self._hits(res, plan, strict=True)
+        events, snips = self._hits(res, plan, now, strict=True)
         return events, snips, "plan" + (f" after {','.join(tried)}" if tried else "")
 
-    def _hits(self, res: dict[str, Any], plan: Plan, strict: bool = False) -> tuple[list[HearthEvent], dict[str, str]]:
+    def _hits(self, res: dict[str, Any], plan: Plan, now: datetime,
+              strict: bool = False) -> tuple[list[HearthEvent], dict[str, str]]:
         events: list[HearthEvent] = []
         snips: dict[str, str] = {}
         for h in res.get("hits") or []:
@@ -384,6 +385,8 @@ class TypesenseSearch:
                 e = doc_to_event(h["document"])
             except Exception:  # noqa: BLE001, S112
                 continue
+            if e.ts > now + timedelta(minutes=1):
+                continue  # after the demo clock: not "so far"
             if strict and not matches(e, plan):
                 continue
             events.append(e)

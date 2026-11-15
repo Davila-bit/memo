@@ -238,9 +238,11 @@ async def test_notifier_swallows_http_errors(monkeypatch: pytest.MonkeyPatch) ->
     assert integ.health()["ntfy"] == "error"
 
 
-def test_real_vapid_signing_offline() -> None:
+def test_real_vapid_signing_offline(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The VAPID key format scripts/vapid-keys makes is accepted by pywebpush (curl mode: nothing is sent)."""
     import os
+
+    monkeypatch.chdir(tmp_path)  # curl mode writes ./encrypted.data
 
     from cryptography.hazmat.primitives import serialization as ser
     from cryptography.hazmat.primitives.asymmetric import ec

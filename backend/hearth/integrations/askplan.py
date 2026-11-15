@@ -173,7 +173,8 @@ def matches(e: HearthEvent, plan: Plan) -> bool:
 
 def keyword_hits(q: str, now: datetime, recent: list[HearthEvent]) -> tuple[Plan, list[HearthEvent]]:
     plan = make_plan(q, now)
-    found = sorted((e for e in recent if matches(e, plan)), key=lambda e: e.ts, reverse=True)
+    found = sorted((e for e in recent if matches(e, plan) and e.ts <= now + timedelta(minutes=1)),
+                   key=lambda e: e.ts, reverse=True)
     if not plan.kinds:
         terms = content_terms(q)
         found = [e for e in found if any(t in _event_text(e) for t in terms)] if terms else []

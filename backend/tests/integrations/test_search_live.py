@@ -66,3 +66,13 @@ async def test_index_single_and_synonyms(ts: TypesenseSearch) -> None:
     await ts.index(e)
     res = await ts._run({"q": "tea", "filter_by": "kind:=note"})
     assert any(h["document"]["id"] == "ev-new" for h in res["hits"])
+
+
+async def test_demo_clock_moves_the_nl_prompt(ts: TypesenseSearch) -> None:
+    """Same question, demo clock one day earlier: 'today' must now mean Wednesday (500 ml over 3 drinks)."""
+    from datetime import timedelta
+
+    r = await ts.ask("how much has she drunk today?", NOW - timedelta(days=1), recent=[])
+    print(f"\nQ (clock = Wed 3:30 pm): how much has she drunk today?\nA: {r.answer}\n   how={ts.last_debug.get('how')}"
+          f" nl={ts.last_debug.get('nl')}")
+    assert "About 500 ml so far today, across 3 drinks." == r.answer

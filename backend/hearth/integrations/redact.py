@@ -93,6 +93,7 @@ class PresidioRedactor:
         self._anonymizer = None
         self._ready = threading.Event()
         self._failed = False
+        self._has_names = False
         self.load_seconds: float | None = None
         set_status("presidio", "mock")
         if eager:
@@ -107,6 +108,9 @@ class PresidioRedactor:
 
     def _load(self) -> None:
         t0 = time.perf_counter()
+        import logging
+
+        logging.getLogger("presidio-analyzer").setLevel(logging.ERROR)  # it logs every recognizer at INFO
         try:
             from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
             from presidio_analyzer.nlp_engine import NlpEngineProvider
@@ -126,6 +130,7 @@ class PresidioRedactor:
                 patterns=[Pattern("dob", RE_DOB.pattern, 0.9), Pattern("full_date", RE_FULL_DATE.pattern, 0.6)],
             ))
             names = deny_names()
+            self._has_names = bool(names)
             if names:
                 # The deny-list recognizer matches whole tokens, so add the possessive forms too.
                 analyzer.registry.add_recognizer(PatternRecognizer(
@@ -152,7 +157,7 @@ class PresidioRedactor:
 
         assert self._analyzer is not None and self._anonymizer is not None
         results = self._analyzer.analyze(
-            text=text, language="en", entities=list(self._ENTITIES),
+            text=text, language="en", entities=[e for e in self._ENTITIES if e != "FAMILY_NAME" or self._has_names],
             allow_list=sorted(ALLOW_WORDS), allow_list_match="exact",
         )
         kept = []
