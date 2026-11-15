@@ -5,7 +5,7 @@ Accessibility evidence: [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md) (axe scan
 
 **The call your mum never has to answer.**
 
-[callyourmother.club](https://callyourmother.club) · [Devpost story](docs/DEVPOST.md)
+[callyourmother.club](https://callyourmother.club)
 
 Emory Hacks 2026 · Healthcare track
 
@@ -112,7 +112,7 @@ Web e2e tests use Playwright with `@axe-core/playwright`. Every page and state t
 
 ## Built in Coder
 
-Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each teammate gets their own workspace (code-server in the browser, GPU, shared ports for the web app and API). Task cards in [`docs/tasks/`](docs/tasks/).
+Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each teammate gets their own workspace (code-server in the browser, GPU, shared ports for the web app and API). Work moved between the workspaces on task cards: see [`docs/HOW-WE-BUILT.md`](docs/HOW-WE-BUILT.md).
 
 ## Credits
 
@@ -188,6 +188,5 @@ We're a team of two, and we used AI coding agents heavily, each of us in our own
 
 - [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md): the accessibility report (what was scanned, what was checked by hand, what was not)
 - [`docs/TYPESENSE-CAPACITY.md`](docs/TYPESENSE-CAPACITY.md): what we measured on the free Typesense cluster
-- [`docs/DEVPOST.md`](docs/DEVPOST.md): the project write-up
 - [`contracts/API.md`](contracts/API.md): API, live channel, agent tools, repo layout
-- [`docs/tasks/`](docs/tasks/): the task cards the team worked from
+- [`docs/HOW-WE-BUILT.md`](docs/HOW-WE-BUILT.md): contracts first, one workspace each, and the task cards that moved work between us
