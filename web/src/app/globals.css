@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/*
+ * Hearth design tokens (docs/02-PRODUCT-SPEC.md §6).
+ * The spec colours (sage, amber, coral, sky) are used for fills, rings and icons (>= 3:1 against
+ * paper/surface). Text uses the darker *-ink variants, which pass 4.5:1 on paper, surface and every
+ * tint. Ratios are in web/scripts/contrast.py.
+ */
+:root {
+  --paper: #f6f1e9;
+  --surface: #fffdf8;
+  --ink: #1f2a2e;
+  --muted: #5b6670;
+  --line: #e4dccf;
+  --line-strong: #8c949a;
+
+  --sage: #5e8c7b;
+  --sage-ink: #3d6a5a;
+  --sage-tint: #e7efea;
+  --amber: #b9771f;
+  --amber-fill: #d98e2b;
+  --amber-ink: #87530f;
+  --amber-tint: #f8ecd9;
+  --coral: #c8483b;
+  --coral-ink: #a8372c;
+  --coral-tint: #f8e4e0;
+  --sky: #3b7ea1;
+  --sky-ink: #2a6383;
+  --sky-tint: #e3edf2;
+
+  --focus: #2a6383;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-sage: var(--sage);
+  --color-sage-ink: var(--sage-ink);
+  --color-sage-tint: var(--sage-tint);
+  --color-amber: var(--amber);
+  --color-amber-fill: var(--amber-fill);
+  --color-amber-ink: var(--amber-ink);
+  --color-amber-tint: var(--amber-tint);
+  --color-coral: var(--coral);
+  --color-coral-ink: var(--coral-ink);
+  --color-coral-tint: var(--coral-tint);
+  --color-sky: var(--sky);
+  --color-sky-ink: var(--sky-ink);
+  --color-sky-tint: var(--sky-tint);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --radius-card: 1.25rem;
+  --shadow-card: 0 1px 0 rgb(31 42 46 / 0.04), 0 8px 24px -12px rgb(31 42 46 / 0.12);
+}
+
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  background: var(--paper);
+}
+
+/* Large type: everything is sized in rem, so scaling the root scales the app. */
+html[data-large-type="1"] {
+  font-size: 118.75%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-serif {
+  font-optical-sizing: auto;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* One visible focus style everywhere (WCAG 2.4.7 / 2.4.11). */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 0.5rem;
+}
+
+/* Custom radio cards: show the focus ring on the label when the hidden input has focus. */
+.ring-on-focus:has(:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+::selection {
+  background: var(--sky-tint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes hearth-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.animate-soft-pulse {
+  animation: hearth-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes hearth-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--line) 0%, #efe8dc 50%, var(--line) 100%);
+  background-size: 200% 100%;
+  animation: hearth-shimmer 1.8s ease-in-out infinite;
+}
