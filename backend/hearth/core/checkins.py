@@ -338,6 +338,16 @@ class CheckinService:
                 summary = f"The {fmt_short(due, r.timezone)} {what} check-in didn't go through"
                 event = HearthEvent(id=new_id("ev"), ts=now, resident_id=r.id, checkin_id=c.id, kind="missed",
                                     source=c.transport, summary=summary, evidence=(error or "")[:240])
+                # A check-in that produced no result must never pass silently: tell the family.
+                if c.connected_at is not None:
+                    title = f"{r.family_name_for_her}'s {fmt_short(due, r.timezone)} check-in ended without a result"
+                    detail = (f"She answered, but the call ended before the helper saw her have her {what}. "
+                              "Please check on her.")
+                else:
+                    title = f"{r.family_name_for_her}'s {fmt_short(due, r.timezone)} check-in couldn't be placed"
+                    detail = "The call didn't connect, so nobody checked on her this time. You may want to call her."
+                alert = Alert(id=new_id("al"), ts=now, resident_id=r.id, checkin_id=c.id, event_id=event.id,
+                              kind="no_answer", tier="check", title=title, detail=detail)
             elif final in ("refused", "concern") and not c.outcome:
                 summary = "Ended early"
             c = c.model_copy(update={"status": "ended", "ended_at": now, "outcome": final, "summary": summary,
