@@ -171,7 +171,7 @@ async def judge(frames: list[tuple[float, bytes]], obj: str = "a cup", timeout: 
     try:
         r = await asyncio.wait_for(
             client.aio.models.generate_content(model=model, contents=parts, config=cfg),
-            timeout or _f("HEARTH_VERIFY_TIMEOUT", 6.0),
+            timeout or _f("HEARTH_VERIFY_TIMEOUT", 9.0),
         )
         d = r.parsed if isinstance(r.parsed, dict) else __import__("json").loads(r.text)
         v = Verdict(
