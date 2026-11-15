@@ -34,6 +34,14 @@ SYNONYMS: dict[str, list[str]] = {
 }
 
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+# Full names plus the short forms people type ("sun", "tues", "thurs"). "wed" and "sat" are also
+# ordinary words ("she sat down"), so they only count as days after "on", "last" or "this".
+_DAY_SHORT = ["mon", "tues?", "weds?", "thu(?:rs?)?", "fri", "sat", "sun"]
+DAY_PATTERNS = [
+    rf"\b(?:{wd}|{short})\b\.?" if short not in ("weds?", "sat")
+    else rf"\b{wd}\b|\b(?:on|last|this)\s+{short}\b"
+    for wd, short in zip(WEEKDAYS, _DAY_SHORT, strict=True)
+]
 MEAL_DAYPART = {"breakfast": "morning", "lunch": "afternoon", "dinner": "evening", "supper": "evening"}
 
 Intent = str  # "amount" | "last" | "said" | "missed" | "yesno" | "list"
@@ -120,7 +128,7 @@ def make_plan(q: str, now: datetime) -> Plan:
         plan.timeframe = "last week"
     else:
         for i, wd in enumerate(WEEKDAYS):
-            if re.search(rf"\b{wd}\b", ql):
+            if re.search(DAY_PATTERNS[i], ql):
                 back = (n_local.weekday() - i) % 7
                 plan.start, plan.end = _day_bounds(n_local - timedelta(days=back))
                 plan.timeframe = "today" if back == 0 else f"on {wd.capitalize()}"

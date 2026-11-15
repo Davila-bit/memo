@@ -80,6 +80,12 @@ def test_plan_resolves_relative_days() -> None:
     p = make_plan("did Mum take her evening pills on Tuesday?", NOW)
     assert p.intent == "yesno" and p.topic == "med" and p.dayparts == ["evening"]
     assert p.start is not None and p.start.weekday() == 1 and p.timeframe == "on Tuesday"
+    for q, wd in [("did she drink water on Sun?", 6), ("how much did she drink sun", 6),
+                  ("pills on tues", 1), ("water thurs", 3), ("lunch on sat", 5), ("drink on Wed?", 2)]:
+        p = make_plan(q, NOW)
+        assert p.start is not None and p.start.weekday() == wd, q
+    p = make_plan("did she drink after she sat down?", NOW)
+    assert p.start is None  # "sat" alone is not Saturday
     p = make_plan("any check-ins she missed this week?", NOW)
     assert p.kinds == ["missed"] and p.start is not None and (NOW - p.start) < timedelta(days=7)
 
