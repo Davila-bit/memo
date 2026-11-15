@@ -18,8 +18,9 @@ what she said and chooses what to do next.
 2. The helper places a FaceTime video call through Chert. The iPad auto-answers.
 3. The iPad shows a calm cue card: a photo of her own mug, plate or pill organiser, one line of large text, and live captions.
 4. The helper speaks: a short, warm, adult prompt using her preferred name, then waits.
-<!-- VERIFY: whether the helper can see the iPad camera on outbound FaceTime calls — as of 00:28 ET it receives audio only on outbound; vision may come from the kiosk transport or from an inbound call -->
-5. When it sees her drink (or hears her say so), the helper logs "observed taking" and the daughter's phone updates within seconds. If she refuses, the daughter gets her words and action choices: try again later, call her, or ask a neighbour.
+5. When the helper sees her drink, it logs "observed taking" and the daughter's phone updates within seconds. When it can only hear her say she did (no camera on that call), it logs that as "said she did", shown differently and not counted towards the day's fluids. If she refuses, the daughter gets her words and action choices: try again later, call her, or ask a neighbour. If nobody answers, the helper tries once more and then alerts the daughter.
+
+The same helper runs over two transports: a real FaceTime call through Chert, and a browser kiosk page (WebRTC) for tablets without FaceTime and for development.
 
 ## Architecture
 
@@ -66,8 +67,8 @@ flowchart TD
 Development happens inside **Coder workspaces**. See [`infra/coder/README.md`](infra/coder/README.md) for setup.
 
 ```bash
-scripts/dev-up            # start API, web and agent worker in the Coder workspace
-scripts/dev-up --public   # same, with a cloudflared tunnel for teammate access
+scripts/dev-up --prod            # start API, agent worker and web (production build) in the Coder workspace
+scripts/dev-up --public --prod   # same, with cloudflared tunnels so a phone can open it
 scripts/dev-down          # stop everything
 ```
 
@@ -77,16 +78,16 @@ Keys are managed with `fnox`. The names are listed in [`contracts/API.md` §3](c
 
 ```bash
 # backend
-scripts/ws 'cd backend && uv run pytest -q'
+scripts/ws 'cd backend && uv run pytest -q tests'
 
 # agent
 scripts/ws 'cd agent && uv run pytest -q'
 
 # web (e2e + accessibility)
-scripts/ws 'cd web && pnpm e2e'
+scripts/ws 'cd web && pnpm lint && pnpm exec tsc --noEmit && pnpm e2e'
 ```
 
-Web e2e tests use Playwright with `@axe-core/playwright`. Every test page is checked for WCAG 2.2 AA violations. Results: 0 serious or critical issues across 15 tests (mock mode).
+Web e2e tests use Playwright with `@axe-core/playwright`. Every page and state the tests visit is scanned with axe at phone (390x844) and laptop (1280x800) size against the WCAG 2.2 AA rule set, in mock mode. Result: 0 serious or critical issues. No screen-reader pass has been done by hand yet.
 
 ## Privacy and safety
 
@@ -97,7 +98,7 @@ Web e2e tests use Playwright with `@axe-core/playwright`. Every test page is che
 - **Consent and deletion.** A consent record (from the person or their healthcare agent) is stored. All data can be deleted from the privacy page. Events auto-expire after 90 days (Tiger Data retention policy).
 - **The helper never dials 911.** In a concern (she says "I fell" or asks for help), the helper tells the daughter, who decides whether to call emergency services herself.
 - **Gemini free-tier disclosure.** On Google's free tier, content sent to Gemini may be used to improve Google products ([Google's terms](https://ai.google.dev/gemini-api/terms)). For the demo we use a teammate, not a real patient. A production deployment would use the paid API tier, which does not use content for training.
-- **Contacts only.** The kitchen iPad is set to accept FaceTime calls only from the daughter and the helper's line.
+- **Contacts only.** We recommend the family limit the kitchen iPad to FaceTime calls from contacts (the daughter and the helper's line), so nobody else can reach an auto-answering screen.
 
 ## Accessibility
 
@@ -121,9 +122,9 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 | [livekit-client](https://github.com/livekit/client-sdk-js) (JS) | Apache-2.0 | WebRTC kiosk page |
 | [Chert FaceTime API](https://trychert.com/) | service | Bridges FaceTime calls into a LiveKit room |
 | [Google Gemini](https://ai.google.dev/) `gemini-3.8-live` | service | Voice and vision in the call (the helper hears, sees and speaks) |
-| [Google Gemini](https://ai.google.dev/) `gemini-3.5-flash-lite` | service | Daily digest, question understanding, refusal classification |
+| [Google Gemini](https://ai.google.dev/) `gemini-3.5-flash-lite` | service | Daily digest, and understanding questions for "ask the log" |
 | [google-genai](https://github.com/googleapis/python-genai) | Apache-2.0 | Python client for Gemini |
-| [Tiger Cloud](https://www.tigrisdata.com/) / [TimescaleDB](https://github.com/timescale/timescaledb) | Apache-2.0 (core) | Hypertable for events, continuous aggregates for weekly view, retention policy |
+| [Tiger Cloud](https://www.tigerdata.com/) / [TimescaleDB](https://github.com/timescale/timescaledb) | Apache-2.0 (core) | Hypertable for events, continuous aggregates for weekly view, retention policy |
 | [Typesense Cloud](https://cloud.typesense.org/) | GPL-3.0 (server) | "Ask the log" natural-language search over check-in events |
 | [typesense](https://github.com/typesense/typesense-python) (Python client) | Apache-2.0 | Python client for Typesense |
 | [Presidio Analyzer](https://github.com/microsoft/presidio) | MIT | PII detection in evidence text and transcripts |
@@ -131,7 +132,7 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 | [spaCy](https://github.com/explosion/spaCy) + `en_core_web_sm` | MIT | NER model for Presidio |
 | [pywebpush](https://github.com/web-push-libs/pywebpush) | MPL-2.0 | Web Push notifications to the daughter's PWA |
 | [py-vapid](https://github.com/web-push-libs/vapid) | MPL-2.0 | VAPID key handling for Web Push |
-| [ntfy](https://ntfy.sh/) | Apache-2.0 | Urgent push notifications (works without PWA install) |
+| [ntfy](https://ntfy.sh/) | Apache-2.0 | Fallback alert channel when no browser has notifications turned on |
 | [FastAPI](https://github.com/fastapi/fastapi) | MIT | API framework |
 | [Starlette](https://github.com/encode/starlette) | BSD-3-Clause | ASGI toolkit (FastAPI dependency) |
 | [uvicorn](https://github.com/encode/uvicorn) | BSD-3-Clause | ASGI server |
@@ -141,7 +142,7 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 | [python-multipart](https://github.com/Kludex/python-multipart) | Apache-2.0 | Multipart form parsing (photo uploads) |
 | [tzdata](https://github.com/python/tzdata) | Apache-2.0 | Timezone data |
 | [Pillow](https://github.com/python-pillow/Pillow) | MIT-CMU | Cue-card image rendering in the agent |
-| [numpy](https://github.com/numpy/numpy) | BSD-3-Clause | Motion detection in the agent (dev) |
+| [numpy](https://github.com/numpy/numpy) | BSD-3-Clause | Agent development harness (dev dependency) |
 | [Next.js](https://github.com/vercel/next.js) | MIT | Web framework (App Router) |
 | [React](https://github.com/facebook/react) | MIT | UI library |
 | [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) | MIT | Utility-first CSS |
@@ -168,7 +169,7 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 
 ### AI tools used to build this
 
-Claude Code with Claude Fable 5.2 as orchestrator and Claude Opus 5.5 subagents, OpenAI Codex CLI with gpt-6.1-sol, and Google Antigravity. The orchestrator wrote contracts and integration code; features were built by parallel workers in git worktrees; humans steered direction, tested on real devices, and reviewed and merged every change.
+Claude Code with Claude Fable 5.2 as orchestrator and Claude Opus 5.5 subagents, OpenAI Codex CLI with gpt-6.1-sol, and Google Antigravity. The orchestrator wrote the shared contracts and the integration glue, split the work into briefs and task cards, and reviewed, tested and merged every branch; features were built by parallel AI workers in git worktrees and by a teammate's own agent from the task cards. The humans chose the idea and direction, made the product decisions, and tested on real devices (the iPad, FaceTime, the webcam).
 
 ## Team
 
@@ -177,9 +178,7 @@ Claude Code with Claude Fable 5.2 as orchestrator and Claude Opus 5.5 subagents,
 
 ## Docs
 
-- [`docs/07-HEARTH-HOME.md`](docs/07-HEARTH-HOME.md) — current spec (users, loop, features, architecture, accessibility, privacy, demo)
-- [`docs/08-STACK-AND-ADDITIONS.md`](docs/08-STACK-AND-ADDITIONS.md) — final stack, safety layer, kiosk fallback, team attribution
-- [`docs/06-VALIDATION.md`](docs/06-VALIDATION.md) — how we chose the idea, alternatives, community sentiment
-- [`docs/01-RESEARCH.md`](docs/01-RESEARCH.md) — event, prizes, judges, market, clinical stats, legal
-- [`contracts/API.md`](contracts/API.md) — API, live channel, agent tools, repo layout
-- [`docs/STATE.md`](docs/STATE.md) — what is verified, what is not
+- [`docs/07-HEARTH-HOME.md`](docs/07-HEARTH-HOME.md): current spec (users, loop, features, architecture, accessibility, privacy, demo)
+- [`docs/08-STACK-AND-ADDITIONS.md`](docs/08-STACK-AND-ADDITIONS.md): final stack, safety layer, kiosk fallback, team attribution
+- [`contracts/API.md`](contracts/API.md): API, live channel, agent tools, repo layout
+- [`docs/tasks/`](docs/tasks/): the task cards the team worked from
