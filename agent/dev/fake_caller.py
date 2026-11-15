@@ -16,6 +16,7 @@ import logging
 import os
 import time
 import wave
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +33,7 @@ def token(room: str, identity: str) -> str:
         api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"])
         .with_identity(identity)
         .with_name("Test caller")
+        .with_ttl(timedelta(minutes=30))
         .with_grants(api.VideoGrants(room_join=True, room=room, can_publish=True, can_subscribe=True))
         .to_jwt()
     )

@@ -218,7 +218,7 @@ class CaptionSink(TextOutput):
 
     def flush(self) -> None:
         sentence, self._buf = self._buf.strip(), ""
-        if sentence:
+        if sentence and not self._call.api.ended:
             self._call.spawn(self._call.api.caption("helper", sentence, True))
 
 
@@ -310,7 +310,7 @@ class Call:
 
     # -- her words (keyword backup + captions)
     def on_her_transcript(self, text: str, final: bool) -> None:
-        if not self.live.is_set():
+        if not self.live.is_set() or self.ending:
             return
         if final:
             self.spawn(self.api.caption("her", text, True))
@@ -343,7 +343,7 @@ class Call:
         self.live.set()
         log.info("live: linking her and greeting")
         assert self.session is not None
-        her = await self._find_her(timeout=10)
+        her = await self._find_her(timeout=0)  # never delay the greeting: link late if needed
         if her is not None:
             self.session.room_io.set_participant(her.identity)
         else:
@@ -420,7 +420,7 @@ class Call:
         t0 = time.monotonic()
         deadline = t0 + max_wait
         if expect_speech:
-            while time.monotonic() - t0 < 5.0 and self.last_speech_start < t0:
+            while time.monotonic() - t0 < min(5.0, max_wait) and self.last_speech_start < t0:
                 await asyncio.sleep(0.1)
         await asyncio.sleep(0.5)
         quiet_since = None
@@ -442,7 +442,11 @@ class Call:
         if self.budget:
             self.budget.cancel()
         if wait_speech:  # goodbye first: ending the check-in hangs up the call
-            await self._wait_quiet(10.0, expect_speech=not self.spoke_since_tool())
+            max_wait = 10.0
+            if self.live_at is not None:  # never past the hard budget
+                max_wait = min(max_wait, self.live_at + self.job.max_seconds - time.monotonic())
+            if max_wait > 0:
+                await self._wait_quiet(max_wait, expect_speech=not self.spoke_since_tool())
         await self.api.end(reason, detail)
         self.ctx.shutdown(reason=f"checkin {reason}")
 

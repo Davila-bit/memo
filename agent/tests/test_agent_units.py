@@ -171,6 +171,25 @@ async def test_budget_timer_warns_then_expires() -> None:
     assert events == ["warn", "expire"] and t.expired
 
 
+async def test_budget_expire_callback_can_end_the_call() -> None:
+    """Regression: finish() cancels the budget; when called FROM the budget it must not kill itself."""
+    done: list[str] = []
+    t: BudgetTimer
+
+    async def warn() -> None:
+        pass
+
+    async def expire() -> None:
+        t.cancel()  # what Call.finish does
+        await asyncio.sleep(0.05)  # e.g. the POST /end
+        done.append("end posted")
+
+    t = BudgetTimer(0.1, warn, expire, warn_before=0.05)
+    t.start()
+    await asyncio.sleep(0.3)
+    assert done == ["end posted"]
+
+
 async def test_budget_timer_cancel() -> None:
     hit: list[str] = []
 

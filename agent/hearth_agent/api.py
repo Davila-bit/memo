@@ -93,7 +93,13 @@ class HearthApi:
         if self.ended:
             return None
         self.ended = True
-        return await self._post("end", ToolEndCheckin(reason=reason, detail=detail[:200]))  # type: ignore[arg-type]
+        res: ToolResult | None = None
+        try:
+            res = await self._post("end", ToolEndCheckin(reason=reason, detail=detail[:200]))  # type: ignore[arg-type]
+            return res
+        finally:
+            if res is None:
+                self.ended = False  # not delivered (failed or cancelled): the shutdown hook tries again
 
     async def get_checkin(self) -> Checkin | None:
         try:

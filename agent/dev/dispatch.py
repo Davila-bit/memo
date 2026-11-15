@@ -111,7 +111,15 @@ async def main() -> None:
             caller = Caller(room, sc["image"], sc["video"], sc["lines"])
             caller_task = asyncio.create_task(caller.run(a.live_after + a.hold))
         else:
-            log.info("join this room from a browser as identity kiosk-<anything>: room=%s", room)
+            from urllib.parse import urlencode  # noqa: PLC0415
+
+            from fake_caller import token  # noqa: PLC0415
+
+            tok = token(room, f"{a.prefix}browser")
+            q = urlencode({"liveKitUrl": os.environ["LIVEKIT_URL"], "token": tok})
+            # A short-lived join token for this one test room only (not an API key).
+            print(f"\nOpen in a browser, allow camera + mic, join BEFORE live ({a.live_after:.0f}s):\n"
+                  f"  https://meet.livekit.io/custom?{q}\n", flush=True)
 
         await asyncio.sleep(a.live_after)
         live_at = time.monotonic()

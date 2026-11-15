@@ -40,5 +40,6 @@ class BudgetTimer:
         await self._on_expire()
 
     def cancel(self) -> None:
-        if self._task and not self._task.done():
+        # on_expire may itself end the call (and call cancel): never cancel ourselves mid-callback
+        if self._task and not self._task.done() and self._task is not asyncio.current_task():
             self._task.cancel()
