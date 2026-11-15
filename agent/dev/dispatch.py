@@ -45,7 +45,7 @@ def make_job(checkin_id: str, kind: str, api_base: str, max_seconds: int, prefix
         daughter_name="Sarah", consent=Consent(status="signed", signed_by="Margaret Ellis", relation="self"),
     )
     cue = {
-        "drink": Cue(id="cue-mug", kind="drink", title="Your blue mug", line="Time for some water, Margaret"),
+        "drink": Cue(id="cue-mug", kind="drink", title="Your mug", line="Time for some water, Margaret"),
         "meal": Cue(id="cue-plate", kind="meal", title="Your lunch plate", line="Lunch time, Margaret"),
         "med": Cue(id="cue-pills", kind="med", title="Your pill box", line="Your morning tablets",
                    slot_label="TUE · MORNING"),

@@ -10,7 +10,7 @@ from hearth_agent.cuecard import CardState, render
 
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
-cap = "Hello Margaret, it's Sarah's helper. Could you hold up your blue mug so I can see it?"
+cap = "Hello Margaret, it's Sarah's helper. Could you hold up your mug so I can see it?"
 states = {
     "waiting": CardState(mode="waiting"),
     "asking": CardState(mode="asking", line="Time for some water, Margaret", caption=cap),

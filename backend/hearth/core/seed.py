@@ -131,6 +131,12 @@ def history(now: datetime, items: list[ScheduleItem]) -> list[HearthEvent]:
 
 
 async def seed(store: Store, now: datetime) -> int:
+    # A reset keeps the family's on/off choice for each default time (e.g. everything switched off for
+    # judging), but the history is always drawn from the full default schedule so the week looks lived in.
+    try:
+        kept = {i.id: i.enabled for i in await store.list_schedule()}
+    except Exception:  # noqa: BLE001 - empty or fresh store
+        kept = {}
     await store.wipe()
     r = resident()
     await store.put_resident(r)
@@ -138,6 +144,8 @@ async def seed(store: Store, now: datetime) -> int:
         await store.put_cue(c)
     items = schedule()
     for i in items:
+        if i.id in kept:
+            i = i.model_copy(update={"enabled": kept[i.id]})
         await store.put_schedule_item(i)
     evs = history(now, items)
     await store.add_events(evs)

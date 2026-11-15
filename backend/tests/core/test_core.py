@@ -338,6 +338,15 @@ def test_today_privacy_and_delete(client):
     assert client.get("/api/privacy").json()["counts"]["events"] > 10
 
 
+def test_reset_keeps_switched_off_times_but_full_history(client):
+    full = client.get("/api/privacy").json()["counts"]["events"]
+    for item in client.get("/api/schedule").json():
+        client.put(f"/api/schedule/{item['id']}", json={**item, "enabled": False})
+    assert client.post("/api/demo/reset").status_code == 200
+    assert not any(i["enabled"] for i in client.get("/api/schedule").json())
+    assert client.get("/api/privacy").json()["counts"]["events"] == full
+
+
 def test_cues_slot_label_and_photo(client):
     cues = {c["id"]: c for c in client.get("/api/cues").json()}
     assert set(cues) == {"cue-mug", "cue-plate", "cue-pills"}
