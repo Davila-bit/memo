@@ -84,15 +84,19 @@ defaults to `gemini-3.5-flash-lite` (0.5 s).
 | `POST /api/demo/reset` | → `Today` | re-seed 3 days of history |
 | `POST /api/push/subscribe` | `PushSubscription` → 204 | Web Push |
 | `GET /api/push/key` | → `{public_key: str \| null}` | VAPID public key |
+| `GET /api/ws-ticket` | → `{ticket: str}` | 60-second single-use ticket so the page can open `/ws?ticket=` on another origin |
 | `GET /api/kiosk/token?device=` | → `KioskToken` | for the `/kiosk` page; needs `?key=` = `HEARTH_INTERNAL_TOKEN` instead of a session |
 
 Errors: `{"detail": "plain sentence"}` with the right status code.
 
-## 5. Live channel `GET /ws` (WebSocket, same cookie)
+## 5. Live channel `GET /ws` (WebSocket; session cookie or `?ticket=`)
 
 Server → client only, one JSON `WsMessage` per frame: `checkin` (every status change), `event`,
 `alert` (new or updated), `caption` (live-only, never stored), `clock`. On connect the server sends
 the active `checkin` (if any) and a `clock`. The client refetches `/api/today` after reconnecting.
+
+The web app must work without the socket: it falls back to polling `/api/today` every 1.5 s while a
+check-in is active (10 s otherwise). Only captions need the socket.
 
 ## 6. Agent-only endpoints (`/internal`, header `X-Hearth-Token: $HEARTH_INTERNAL_TOKEN`)
 
