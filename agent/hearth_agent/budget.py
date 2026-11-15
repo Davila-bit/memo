@@ -1,4 +1,4 @@
-"""The per-call time budget (AGENTS.md rule 3: every call ≤ 90 s)."""
+"""The per-call time budget: every call must end within 90 seconds."""
 
 from __future__ import annotations
 

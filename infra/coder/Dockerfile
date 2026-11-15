@@ -1,4 +1,4 @@
-# hearth-dev:latest: the Coder workspace image for Hearth Home.
+# hearth-dev:latest: the Coder workspace image for Memo.
 # Build: docker build -t hearth-dev:latest infra/coder
 FROM ubuntu:24.04
 

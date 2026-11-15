@@ -1,7 +1,7 @@
-"""Hearth Home shared data contracts (API <-> web <-> agent).
+"""Memo shared data contracts (API <-> web <-> agent).
 
 This file is the reference. `web/src/lib/contracts.ts` mirrors it by hand. Change both, plus
-`contracts/API.md`, in ONE commit (AGENTS.md rule 5).
+`contracts/API.md`, together in one commit so the API, web and agent share the same contracts.
 
 Privacy rule baked into the shapes: nothing here can carry call audio, video or frames. Evidence is
 short text. Captions are live-only (WebSocket) and are never stored.

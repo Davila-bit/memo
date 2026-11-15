@@ -1,4 +1,4 @@
-# Hearth Home workspace template.
+# Memo workspace template.
 # Based on Coder's official `docker` starter template (coder/coder examples/templates/docker,
 # tag v2.38.7), changed to: hearth-dev:latest image, the repo bind-mounted at its host path,
 # code-server opening the repo, web (3000) and API (8000) apps, GPU access.

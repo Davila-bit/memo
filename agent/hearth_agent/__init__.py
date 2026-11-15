@@ -1,1 +1,1 @@
-"""Hearth Home check-in agent (livekit-agents worker `hearth-agent`)."""
+"""Memo check-in agent (livekit-agents worker `hearth-agent`)."""

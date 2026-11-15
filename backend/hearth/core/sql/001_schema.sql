@@ -1,4 +1,4 @@
--- Hearth Home schema for Tiger Cloud (PostgreSQL 18 + TimescaleDB 2.32).
+-- Memo schema for Tiger Cloud (PostgreSQL 18 + TimescaleDB 2.32).
 -- Everything lives in the `hearth` schema. Applied at startup, statement by statement; each
 -- statement is idempotent (IF NOT EXISTS / if_not_exists). Statements are separated by a blank
 -- line after the terminating semicolon.

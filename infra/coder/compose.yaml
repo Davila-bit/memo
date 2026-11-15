@@ -1,4 +1,4 @@
-# Coder server for Hearth Home. Start: docker compose -f infra/coder/compose.yaml up -d
+# Coder server for Memo. Start: docker compose -f infra/coder/compose.yaml up -d
 # CODER_ACCESS_URL is deliberately unset: Coder then opens its built-in dev tunnel and
 # serves a public https://<id>.<region>.try.coder.app URL (and sets the wildcard app URL
 # to *--<id>.<region>.try.coder.app). The tunnel key lives in the hearth-coder-home volume,
