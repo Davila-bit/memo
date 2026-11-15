@@ -1,4 +1,6 @@
-"""Opt-in, process-local watch state. Images never leave the request/classifier stack."""
+"""Opt-in, process-local watch state. Images are never written anywhere: only the most recent frame the
+check looked at is held in memory, so the family can see what it saw; it is replaced by the next one and
+dropped when watch mode stops or expires."""
 
 from __future__ import annotations
 
@@ -26,12 +28,16 @@ class WatchService:
         self.generation = 0
         self.frame_lock = asyncio.Lock()
         self.classify = classify_watch_frame
+        # The latest frame that was checked, with when and what the check said. Memory only.
+        self.last_frame: tuple[datetime, bytes] | None = None
 
     def view(self) -> Watch:
         if not self.svc.settings.watch:
             return Watch(enabled=False, active=False)
         if self.until is not None and self.svc.clock.now() >= self.until:
             self.stop()
+        if self.until is None:
+            self.last_frame = None
         return Watch(enabled=True, active=self.until is not None, until=self.until, notes=self.notes)
 
     def start(self, minutes: int) -> Watch:
@@ -40,6 +46,7 @@ class WatchService:
         self.until = now + timedelta(minutes=minutes)
         self.last_seen = now
         self.notes = []
+        self.last_frame = None
         self.concerns = 0
         self.alerted = False
         self.out_of_view_noted = False
@@ -48,6 +55,7 @@ class WatchService:
     def stop(self) -> Watch:
         self.generation += 1
         self.until = None
+        self.last_frame = None
         self.concerns = 0
         return self.view()
 
@@ -65,6 +73,11 @@ class WatchService:
         if not self.view().active or await self.svc.store.active_checkin() is not None:
             raise HTTPException(409, "Watch mode is paused or off.")
 
+    def latest_frame(self) -> bytes | None:
+        """The last checked frame while watch mode is on, else None."""
+        self.view()
+        return self.last_frame[1] if self.last_frame else None
+
     async def frame(self, jpeg: bytes) -> Watch:
         if self.frame_lock.locked():
             raise HTTPException(409, "A watch image is already being checked.")
@@ -78,6 +91,7 @@ class WatchService:
                 await self.require_active()
                 if generation != self.generation:
                     raise HTTPException(409, "Watch mode changed while checking.")
+                self.last_frame = (self.svc.clock.now(), bytes(jpeg))
                 if result is None:
                     self.concerns = 0
                     return self.view()

@@ -3,6 +3,8 @@
 import { CheckCircle, Warning, WarningCircle } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { withBase } from "@/lib/base";
+import { IS_MOCK } from "@/lib/env";
 import type { Resident, Watch, WatchRequest } from "@/lib/contracts";
 import { formatTime } from "@/lib/format";
 import { Button } from "../ui/button";
@@ -13,10 +15,46 @@ const statuses = {
   concern: { Icon: WarningCircle, label: "Needs you", color: "text-coral-ink" },
 };
 
+/** The last picture the watch check looked at. Fetched into memory and shown; never saved. */
+function WatchFeed({ latest }: { latest?: { ts: string; note: string } }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (IS_MOCK) return;
+    let disposed = false;
+    let url: string | null = null;
+    const load = async () => {
+      try {
+        const res = await fetch(withBase("/api/watch/frame"), { cache: "no-store" });
+        if (!res.ok || disposed) return;
+        const next = URL.createObjectURL(await res.blob());
+        if (disposed) { URL.revokeObjectURL(next); return; }
+        if (url) URL.revokeObjectURL(url);
+        url = next;
+        setSrc(next);
+      } catch { /* keep the last picture */ }
+    };
+    void load();
+    const timer = setInterval(load, 3000);
+    return () => { disposed = true; clearInterval(timer); if (url) URL.revokeObjectURL(url); };
+  }, []);
+  return (
+    <figure className="mt-4">
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a blob: URL of an in-memory frame
+        <img src={src} alt="The latest picture the kitchen screen checked" className="w-full max-w-md rounded-xl border border-line" />
+      ) : (
+        <p className="text-muted">Waiting for the first picture…</p>
+      )}
+      {latest ? <figcaption className="mt-2 text-sm text-muted">Last check: {latest.note}</figcaption> : null}
+    </figure>
+  );
+}
+
 export function WatchCard({ resident }: { resident: Resident }) {
   const [watch, setWatch] = useState<Watch | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showFeed, setShowFeed] = useState(false);
   const revision = useRef(0);
   useEffect(() => {
     let disposed = false;
@@ -59,6 +97,9 @@ export function WatchCard({ resident }: { resident: Resident }) {
         <div className="mt-4 flex flex-wrap items-center gap-4">
           <p role="status">On until {formatTime(watch.until, resident.timezone)}</p>
           <Button variant="quiet" onClick={() => void change()} disabled={busy}>Turn off</Button>
+          <Button variant="quiet" aria-pressed={showFeed} onClick={() => setShowFeed((v) => !v)}>
+            {showFeed ? "Hide what it sees" : "Show what it sees"}
+          </Button>
         </div>
       ) : (
         <div className="mt-4 flex flex-wrap gap-3">
@@ -66,6 +107,7 @@ export function WatchCard({ resident }: { resident: Resident }) {
           <Button variant="quiet" onClick={() => void change(120)} disabled={busy || !watch}>2 hours</Button>
         </div>
       )}
+      {active && showFeed ? <WatchFeed latest={watch.notes.at(-1)} /> : null}
       {error ? <p role="alert" className="mt-3 text-coral-ink">{error}</p> : null}
       <div role="log" aria-label="Watch notes" aria-live="polite" aria-relevant="additions" className="mt-4">
         {active && watch.notes.length ? (
