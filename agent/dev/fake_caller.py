@@ -88,7 +88,7 @@ class Caller:
         mic = rtc.LocalAudioTrack.create_audio_track("mic", self.audio)
         await self.room.local_participant.publish_track(
             mic, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
-        tasks = [asyncio.create_task(self._audio_loop())]
+        tasks = [asyncio.create_task(self._guard(self._audio_loop()))]
         if self.video:
             src = rtc.VideoSource(640, 480)
             cam = rtc.LocalVideoTrack.create_video_track("camera", src)
@@ -101,6 +101,14 @@ class Caller:
             for t in tasks:
                 t.cancel()
             await self.room.disconnect()
+
+    async def _guard(self, coro) -> None:
+        try:
+            await coro
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("caller task failed")
 
     async def _video_loop(self, src: rtc.VideoSource) -> None:
         data = make_frame_image(self.image).convert("RGBA").tobytes()
@@ -145,15 +153,9 @@ class Caller:
                     part = np.pad(part, (0, chunk - len(part)))
                 await self.audio.capture_frame(rtc.AudioFrame(part.tobytes(), SR, 1, chunk))
 
-        async def silence_until(ev: asyncio.Event) -> None:
-            while not ev.is_set():
-                await push(silence)
-
+        # one writer only: silence until the helper finishes an utterance, then the next line
         while True:
-            if queue:
-                waiter = asyncio.create_task(self.helper_quiet.wait())
-                await asyncio.wait([waiter, asyncio.create_task(silence_until(self.helper_quiet))],
-                                   return_when=asyncio.FIRST_COMPLETED)
+            if queue and self.helper_quiet.is_set():
                 self.helper_quiet.clear()
                 name, pcm = queue.pop(0)
                 await push(np.zeros(SR // 2, dtype=np.int16))

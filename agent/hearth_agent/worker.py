@@ -18,7 +18,10 @@ import os
 import time
 from typing import Literal
 
+from google.genai import types as gt  # imported at process start, not on the first job
 from livekit import rtc
+from PIL import Image
+from livekit.plugins import google
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli, function_tool, room_io
 from livekit.agents.voice.io import TextOutput, VideoInput
 
@@ -44,6 +47,7 @@ AGENT_NAME = os.environ.get("HEARTH_AGENT_NAME", "hearth-agent")
 NOBODY = "__hearth_waiting_for_live__"  # RoomIO links to no one until we say she is live
 NO_VIDEO_AFTER = 8.0
 KEYWORD_GRACE = 3.0
+MOTION_MIN = float(os.environ.get("HEARTH_MOTION_MIN", "1.5"))
 PRELIVE_TIMEOUT = float(os.environ.get("HEARTH_PRELIVE_TIMEOUT", "240"))
 
 
@@ -69,9 +73,6 @@ def is_live(metadata: str | None, checkin_id: str) -> bool:
 
 
 def make_model():
-    from google.genai import types as gt
-    from livekit.plugins import google
-
     key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not key:
         return None
@@ -86,7 +87,6 @@ def make_model():
         # She speaks slowly and pauses: wait longer before deciding she has finished.
         realtime_input_config=gt.RealtimeInputConfig(
             automatic_activity_detection=gt.AutomaticActivityDetection(
-                start_of_speech_sensitivity=gt.StartSensitivity.START_SENSITIVITY_LOW,
                 end_of_speech_sensitivity=gt.EndSensitivity.END_SENSITIVITY_LOW,
                 prefix_padding_ms=200,
                 silence_duration_ms=900,
@@ -115,6 +115,8 @@ class HerVideo(VideoInput):
         self.enabled = False
         self.last_frame_at: float | None = None
         self.frames_sent = 0
+        self._thumb: bytes | None = None
+        self.motion: list[tuple[float, float]] = []  # (time, mean abs change 0-255) per sampled frame
         room.on("track_subscribed", self._on_sub)
         room.on("track_unsubscribed", self._on_unsub)
         room.on("track_muted", self._on_muted)
@@ -161,6 +163,7 @@ class HerVideo(VideoInput):
                     continue
                 next_at = now + self._period
                 self.last_frame_at = now
+                self._note_motion(ev.frame, now)
                 if self._q.full():
                     self._q.get_nowait()
                 self._q.put_nowait(ev.frame)
@@ -168,6 +171,25 @@ class HerVideo(VideoInput):
             pass
         finally:
             await stream.aclose()
+
+    def _note_motion(self, frame: rtc.VideoFrame, now: float) -> None:
+        """A 32x24 grey thumbnail, in memory only, to tell a moving scene from a still picture."""
+        try:
+            rgba = frame.convert(rtc.VideoBufferType.RGBA)
+            small = Image.frombytes("RGBA", (rgba.width, rgba.height), bytes(rgba.data)).convert("L").resize((32, 24))
+            cur = small.tobytes()
+            if self._thumb is not None:
+                diff = sum(abs(a - b) for a, b in zip(cur, self._thumb)) / len(cur)
+                self.motion.append((now, diff))
+                self.motion = self.motion[-60:]
+            self._thumb = cur
+        except Exception:  # noqa: BLE001
+            pass
+
+    def max_motion(self, window: float = 25.0) -> float | None:
+        now = time.monotonic()
+        vals = [m for t, m in self.motion if now - t <= window]
+        return max(vals) if vals else None
 
     def seeing(self, within: float = 4.0) -> bool:
         return self.last_frame_at is not None and time.monotonic() - self.last_frame_at < within
@@ -215,6 +237,9 @@ class Call:
         self.live_at: float | None = None
         self.first_speech_at: float | None = None
         self.asked = False
+        self.clamped: str | None = None
+        self.last_tool_at = 0.0  # last outcome tool (confirm / refusal / concern)
+        self.last_speech_start = 0.0
         self.outcome: str | None = None
         self.concern_by_model = False
         self.keyword_task: asyncio.Task | None = None
@@ -232,10 +257,20 @@ class Call:
     def can_see(self) -> bool:
         return self.video is not None and self.video.seeing()
 
+    def scene_moved(self) -> bool:
+        """False when the picture has been (near) still for the whole recent window: a held cup
+        or a still photo, not a drink. Threshold from HEARTH_MOTION_MIN (mean grey change 0-255)."""
+        m = self.video.max_motion() if self.video else None
+        log.info("motion check: max change %.2f (min %.2f)", m if m is not None else -1, MOTION_MIN)
+        return m is not None and m >= MOTION_MIN
+
     def clamp_unseen(self, confidence: float, evidence: str) -> tuple[float, str]:
-        """No picture of her => only what she SAID may be logged, as a low-confidence note."""
-        if self.can_see():
+        """No picture of her, or a picture that never moved => no visual confirmation: only what
+        she SAID may be logged, as a low-confidence note (the core stores < 0.5 as a note)."""
+        self.clamped = None
+        if self.can_see() and self.scene_moved():
             return confidence, evidence
+        self.clamped = "still" if self.can_see() else "no_video"
         ev = evidence if evidence.lower().startswith("said:") else f"Said: {evidence}"
         return min(confidence, 0.4), ev[:240]
 
@@ -246,13 +281,22 @@ class Call:
         return res.say or default
 
     async def confirmed(self, res: ToolResult | None, confidence: float) -> str:
+        self.last_tool_at = time.monotonic()
         if res is not None and res.ok and confidence >= 0.5 and not res.say:
             self.outcome = "confirmed"
             self.card.update(mode="thanks")
             return f"Saved. Now thank {self.job.resident.preferred_name}, say {self.job.resident.daughter_name} will be pleased, say goodbye, then call end_checkin('done')."
+        if self.clamped == "still":
+            return ("Not saved as a confirmation: the picture has not changed at all, so you did not see a drink "
+                    "happen. Ask her once, kindly, to take a sip where you can see it. If you have already asked "
+                    "twice, thank her warmly, say goodbye and call end_checkin('done').")
+        if self.clamped == "no_video":
+            return ("Saved only as a note of what she said, because you cannot see her. Thank her, say goodbye "
+                    "and call end_checkin('done').")
         return self._say_from(res, "Not saved as a confirmation. Ask her once more, kindly, so you can see it.")
 
     async def flag(self, category: str, quote: str, by: Literal["model", "keyword"]) -> ToolResult | None:
+        self.last_tool_at = time.monotonic()
         if by == "model":
             self.concern_by_model = True
         if self.outcome == "concern":
@@ -346,8 +390,13 @@ class Call:
                 )
             )
 
+    def spoke_since_tool(self) -> bool:
+        return self.last_speech_start > self.last_tool_at
+
     def on_agent_state(self, old: str, new: str) -> None:
         now = time.monotonic()
+        if new == "speaking":
+            self.last_speech_start = now
         if new == "speaking" and self.first_speech_at is None and self.live_at is not None:
             self.first_speech_at = now
             log.info("first speech %.2fs after live", now - self.live_at)
@@ -365,10 +414,15 @@ class Call:
     async def _budget_expire(self) -> None:
         await self.finish("time_budget", wait_speech=False)
 
-    async def _wait_quiet(self, max_wait: float) -> None:
-        """Let the goodbye play out: wait until the helper has stopped speaking for a moment."""
-        deadline = time.monotonic() + max_wait
-        await asyncio.sleep(1.0)
+    async def _wait_quiet(self, max_wait: float, expect_speech: bool) -> None:
+        """Let the goodbye play out: if a goodbye is still to come, wait for it to start (up to 5 s),
+        then wait until the helper has stopped speaking for a moment."""
+        t0 = time.monotonic()
+        deadline = t0 + max_wait
+        if expect_speech:
+            while time.monotonic() - t0 < 5.0 and self.last_speech_start < t0:
+                await asyncio.sleep(0.1)
+        await asyncio.sleep(0.5)
         quiet_since = None
         while time.monotonic() < deadline:
             speaking = self.session is not None and self.session.agent_state == "speaking"
@@ -387,9 +441,9 @@ class Call:
         log.info("finishing reason=%s", reason)
         if self.budget:
             self.budget.cancel()
+        if wait_speech:  # goodbye first: ending the check-in hangs up the call
+            await self._wait_quiet(10.0, expect_speech=not self.spoke_since_tool())
         await self.api.end(reason, detail)
-        if wait_speech:
-            await self._wait_quiet(8.0)
         self.ctx.shutdown(reason=f"checkin {reason}")
 
 
@@ -415,7 +469,7 @@ def build_agent(call: Call) -> Agent:
             """
             c, ev = call.clamp_unseen(max(0.0, min(1.0, confidence)), evidence)
             res = await call.api.confirm_drink(ToolConfirmDrink(amount=amount, confidence=c, evidence=ev[:240]))
-            log.info("tool confirm_drink amount=%s confidence=%.2f seen=%s", amount, c, call.can_see())
+            log.info("tool confirm_drink amount=%s confidence=%.2f seen=%s clamped=%s", amount, c, call.can_see(), call.clamped)
             return await call.confirmed(res, c)
 
         @function_tool
@@ -430,7 +484,7 @@ def build_agent(call: Call) -> Agent:
             """
             c, ev = call.clamp_unseen(max(0.0, min(1.0, confidence)), evidence)
             res = await call.api.confirm_meal(ToolConfirmMeal(amount=amount, confidence=c, evidence=ev[:240]))
-            log.info("tool confirm_meal amount=%s confidence=%.2f seen=%s", amount, c, call.can_see())
+            log.info("tool confirm_meal amount=%s confidence=%.2f seen=%s clamped=%s", amount, c, call.can_see(), call.clamped)
             return await call.confirmed(res, c)
 
         @function_tool
@@ -449,7 +503,7 @@ def build_agent(call: Call) -> Agent:
             """
             c, ev = call.clamp_unseen(max(0.0, min(1.0, confidence)), evidence)
             res = await call.api.confirm_med(ToolConfirmMed(steps_seen=steps_seen, confidence=c, evidence=ev[:240]))
-            log.info("tool confirm_med steps=%d confidence=%.2f seen=%s", len(steps_seen), c, call.can_see())
+            log.info("tool confirm_med steps=%d confidence=%.2f seen=%s clamped=%s", len(steps_seen), c, call.can_see(), call.clamped)
             return await call.confirmed(res, c)
 
         @function_tool
@@ -462,6 +516,7 @@ def build_agent(call: Call) -> Agent:
             """
             res = await call.api.report_refusal(ToolReportRefusal(said=said[:200], asked_times=max(1, min(2, asked_times))))
             log.info("tool report_refusal asked_times=%s", asked_times)
+            call.last_tool_at = time.monotonic()
             if call.outcome is None:
                 call.outcome = "refused"
             call.card.update(mode="okay", line="That's all right")
@@ -498,8 +553,11 @@ def build_agent(call: Call) -> Agent:
                 reason: done, refused, concern, distressed, no_answer, time_budget or error.
             """
             log.info("tool end_checkin reason=%s", reason)
+            said_goodbye = call.spoke_since_tool()
             call.spawn(call.finish(reason))
-            return "The call is ending. Say nothing more."
+            if said_goodbye:
+                return "The call is ending. Say nothing more."
+            return "The call is ending. Say your short, warm goodbye now, in one sentence."
 
     return Helper()
 
@@ -527,6 +585,26 @@ def _publish_audio_early(session: AgentSession) -> asyncio.Task | None:
 
     out.start = start_once  # type: ignore[method-assign]
     return asyncio.create_task(out.start(), name="hearth-audio-publish")
+
+
+def _fresh_session_on_error(session: AgentSession) -> None:
+    """Gemini Live sometimes drops a session with 1011 "Internal error". The plugin then reconnects
+    with the session-resumption handle, which the server has already forgotten (1008 "session not
+    found"), and the call dies. Ask the plugin for a FRESH session instead: it replays our chat
+    context into it, so the conversation carries on after a short pause.
+    TODO(upstream): uses the plugin's private _fresh_session_needed flag (livekit-plugins-google 1.8.12)."""
+    rt = getattr(getattr(session, "_activity", None), "_rt_session", None)
+    if rt is None or not hasattr(rt, "_fresh_session_needed"):
+        log.warning("cannot hook Gemini session errors; a dropped session will end the call")
+        return
+
+    def _on_error(ev) -> None:
+        if getattr(ev, "recoverable", False):
+            log.warning("Gemini session dropped (%s); reconnecting with a fresh session",
+                        type(getattr(ev, "error", None)).__name__)
+            rt._fresh_session_needed = True
+
+    rt.on("error", _on_error)
 
 
 async def _wait_audio_published(session: AgentSession, timeout: float = 6.0) -> bool:
@@ -596,12 +674,15 @@ async def entrypoint(ctx: JobContext) -> None:
         call.session = session
         session.on("agent_state_changed", lambda ev: call.on_agent_state(ev.old_state, ev.new_state))
         session.on("user_input_transcribed", lambda ev: call.on_her_transcript(ev.transcript, ev.is_final))
+        session.on("user_state_changed", lambda ev: log.info("her state %s -> %s", ev.old_state, ev.new_state))
 
         def _on_close(ev) -> None:
             log.info("session closed reason=%s error=%s", getattr(ev, "reason", None),
                      type(ev.error).__name__ if getattr(ev, "error", None) else None)
             if not call.ending:
-                call.spawn(call.finish("error" if getattr(ev, "error", None) else "done", "session closed", False))
+                by_outcome = {"confirmed": "done", "refused": "refused", "concern": "concern"}
+                reason = by_outcome.get(call.outcome or "", "error")
+                call.spawn(call.finish(reason, f"session closed: {getattr(ev, 'reason', '')}"[:200], False))
 
         session.on("close", _on_close)
 
@@ -615,7 +696,9 @@ async def entrypoint(ctx: JobContext) -> None:
                 close_on_disconnect=True,
             ),
             record=False,  # never record audio, transcripts or traces
+            session_host=False,  # don't stream session state/events into the room
         )
+        _fresh_session_on_error(session)
         _publish_audio_early(session)
         ok = await _wait_audio_published(session)
         log.info("agent audio published early=%s at %.2fs", ok, time.monotonic() - t0)

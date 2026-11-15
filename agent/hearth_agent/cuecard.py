@@ -274,7 +274,7 @@ class CueCard:
             source=rtc.TrackSource.SOURCE_CAMERA,
             simulcast=False,
             video_encoding=rtc.VideoEncoding(max_framerate=10, max_bitrate=2_000_000),
-            degradation_preference=rtc.DegradationPreference.DEGRADATION_PREFERENCE_MAINTAIN_RESOLUTION,
+            degradation_preference=rtc.DegradationPreference.MAINTAIN_RESOLUTION,
         )
         self._push_one()  # a frame is ready before anyone subscribes
         self.publication = await room.local_participant.publish_track(track, opts)

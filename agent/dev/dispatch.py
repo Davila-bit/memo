@@ -132,7 +132,7 @@ async def main() -> None:
                     mine = [e for e in entries if e["checkin"] == cid]
                     if any(e["call"] == "end" for e in mine):
                         log.info("agent posted end at %.1fs after live", time.monotonic() - live_at)
-                        await asyncio.sleep(3)
+                        await asyncio.sleep(5)
                         break
                 except Exception:  # noqa: BLE001
                     pass
@@ -141,7 +141,7 @@ async def main() -> None:
         print("\n=== stub log for", cid, "===")
         for e in entries:
             if e["checkin"] == cid:
-                print(json.dumps(e))
+                print("STUBLOG", json.dumps(e))
         stop.set()
         watcher.cancel()
     finally:

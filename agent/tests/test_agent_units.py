@@ -182,3 +182,45 @@ async def test_budget_timer_cancel() -> None:
     t.cancel()
     await asyncio.sleep(0.3)
     assert hit == []
+
+
+# ------------------------------------------------------------------ no-video / still-picture gate
+
+
+class _FakeVideo:
+    def __init__(self, seeing: bool, motion: float | None) -> None:
+        self._seeing, self._motion = seeing, motion
+
+    def seeing(self, within: float = 4.0) -> bool:
+        return self._seeing
+
+    def max_motion(self, window: float = 25.0) -> float | None:
+        return self._motion
+
+
+def _call(video) -> "Call":  # noqa: F821
+    from hearth_agent.worker import Call
+
+    job = make_job("c1", "drink", "http://x", 90, "kiosk-")
+    c = Call(ctx=None, job=job, api=None, card=CueCard(CardState()))  # type: ignore[arg-type]
+    c.video = video
+    return c
+
+
+@pytest.mark.parametrize(
+    "video,ok",
+    [
+        (None, False),  # no video track at all
+        (_FakeVideo(False, None), False),  # track gone / muted
+        (_FakeVideo(True, 0.0), False),  # a still photo: nothing moved
+        (_FakeVideo(True, 0.4), False),  # encoder noise only
+        (_FakeVideo(True, 6.0), True),  # a real movement
+    ],
+)
+def test_visual_confirmation_needs_moving_video(video, ok: bool) -> None:
+    c = _call(video)
+    conf, ev = c.clamp_unseen(0.95, "held up blue mug, two drinks")
+    if ok:
+        assert conf == 0.95 and ev == "held up blue mug, two drinks" and c.clamped is None
+    else:
+        assert conf <= 0.4 and ev.startswith("Said:") and c.clamped in ("still", "no_video")
