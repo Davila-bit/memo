@@ -52,7 +52,7 @@ export function AlertCard({ alert }: { alert: Alert }) {
 
   const titleId = `alert-${alert.id}-title`;
   return (
-    <motion.article
+    <motion.div
       layout={!reduce}
       initial={reduce ? false : { opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
@@ -74,7 +74,7 @@ export function AlertCard({ alert }: { alert: Alert }) {
         {urgent ? `${mum} may need you` : alert.title}
       </h2>
       <p className="mt-2 text-[1.0625rem]">{alertSentence(alert, tz)}</p>
-      {alert.said && !urgent ? (
+      {alert.said && !urgent && !alert.detail.includes(alert.said) ? (
         <p className="mt-2 text-[0.9375rem] text-muted">
           In her words: <q className="text-ink">{alert.said}</q>
         </p>
@@ -120,6 +120,6 @@ export function AlertCard({ alert }: { alert: Alert }) {
           {error}
         </p>
       ) : null}
-    </motion.article>
+    </motion.div>
   );
 }
