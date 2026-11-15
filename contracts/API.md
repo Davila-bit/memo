@@ -1,4 +1,4 @@
-# Hearth Home: API, live channel, agent tools, layout
+# Memo: API, live channel, agent tools, layout
 
 Shapes are defined in `contracts/hearth_contracts/models.py` (reference) and mirrored in
 `web/src/lib/contracts.ts`. Module boundaries are in `contracts/hearth_contracts/ports.py`.

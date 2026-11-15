@@ -1,7 +1,7 @@
 [project]
 name = "hearth-contracts"
 version = "0.1.0"
-description = "Shared data contracts for Hearth Home (API, web, agent)"
+description = "Shared data contracts for Memo (API, web, agent)"
 requires-python = ">=3.12"
 dependencies = ["pydantic>=2.9"]
 

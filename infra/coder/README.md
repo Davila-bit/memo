@@ -1,4 +1,4 @@
-# Coder dev environment (Hearth Home)
+# Coder dev environment (Memo)
 
 Coder v2.38.7 (OSS) in Docker, built-in Postgres, data in volume `hearth-coder-home`.
 

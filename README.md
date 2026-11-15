@@ -67,7 +67,33 @@ flowchart TD
     LK <-->|WebRTC| KIOSK
 ```
 
-## Run it
+## Try it in two minutes
+
+With Node.js 20.9+ and Corepack installed, run this from the repo root. No keys,
+backend or Coder workspace are needed: the demo runs entirely in your browser.
+
+```bash
+cd web && corepack enable && pnpm install && pnpm dev:mock
+```
+
+Open http://localhost:3101 and sign in with passcode `hearth-demo`. Stop the
+server with Ctrl+C when finished.
+
+For the Python tests, install Python 3.12 and uv, then run each command from the
+repo root. Both suites run without keys; tests that need live services skip.
+
+```bash
+cd backend && uv sync && uv run pytest -q tests
+```
+
+```bash
+cd agent && uv sync && uv run pytest -q
+```
+
+`hearth` in package and variable names was the working title. Optional environment
+variable names are listed in [`.env.example`](.env.example); the mock demo needs none.
+
+## How we run it (Coder workspace)
 
 Development happens inside **Coder workspaces**. See [`infra/coder/README.md`](infra/coder/README.md) for setup.
 

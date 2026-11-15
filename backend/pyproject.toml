@@ -1,7 +1,7 @@
 [project]
 name = "hearth-backend"
 version = "0.1.0"
-description = "Hearth Home API: check-ins, events, schedule, calls, notifications"
+description = "Memo API: check-ins, events, schedule, calls, notifications"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "hearth-contracts",

@@ -1,7 +1,7 @@
 [project]
 name = "hearth-agent"
 version = "0.1.0"
-description = "Hearth Home check-in agent: livekit-agents worker with Gemini Live (hears, sees, speaks)"
+description = "Memo check-in agent: livekit-agents worker with Gemini Live (hears, sees, speaks)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "hearth-contracts",

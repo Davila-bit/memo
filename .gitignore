@@ -11,16 +11,13 @@ __pycache__/
 .DS_Store
 # event slides (66 MB), keep out of git
 EmoryHacks2026*.pdf
-# isolated gh config for the team account
 .gh/
-# project-level fnox config (names only; values live in the keyring)
 fnox.toml
 # plaintext credential downloads: never commit
 *credentials*.txt
 *api-keys*.txt
 .cache/
 
-# agent worktrees and local tooling
 .claude/
 .env.coder*
 .pnpm-store/

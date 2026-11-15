@@ -142,25 +142,3 @@ This rebuild removes both model definitions and regenerates the index from Tiger
 Check `/metrics.json`, the collection schema/count, a typed question and a separate
 throwaway write before resuming writes. If activation gets OUT_OF_MEMORY, stop
 that activation and use this off/rebuild path; do not repeatedly retry model writes.
-
-## Verification in this worktree
-
-No commits were made. No live stack restart or activation was performed.
-
-```text
-scripts/ws 'cd backend && uv run ruff check hearth tests && uv run pytest -q tests'
-All checks passed!
-146 passed, 13 skipped in 23.27s
-
-scripts/ws 'cd web && pnpm lint && pnpm exec tsc --noEmit && pnpm exec playwright test -c e2e/playwright.config.ts e2e/ask.spec.ts'
-10 passed (35.4s)
-```
-
-Lint and TypeScript checks succeeded. Axe found zero violations in the checked
-Ask states on phone and laptop. Backend tests cover all four combinations of
-flags for schema creation, existing-schema migration and environment loading;
-off states are also tested against collections that already contain models.
-API tests cover voice rejection while disabled and readiness reporting.
-`bash -n scripts/dev-up` and `git diff --check` passed. Port 3101 was idle before
-and after the web suite. Generated tracked screenshots were restored to their
-pre-run contents.
