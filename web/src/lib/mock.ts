@@ -326,7 +326,7 @@ function finish(c: Checkin, outcome: CheckinOutcome): void {
   const s = S();
   const mum = s.resident.family_name_for_her;
   const ts = now();
-  const base = { checkin_id: c.id, source: c.transport === "facetime" ? "facetime" : c.transport === "kiosk" ? "kiosk" : "mock" } as const;
+  const base = { checkin_id: c.id, source: c.trigger === "inbound" ? "inbound" : c.transport === "facetime" ? "facetime" : c.transport === "kiosk" ? "kiosk" : "mock" } as const;
   if (outcome === "confirmed") {
     const e =
       c.kind === "drink"

@@ -44,6 +44,7 @@ if [ ! -f "$RT" ]; then
 fi
 # a private ntfy topic for the daughter's phone alerts (subscribe to it in the ntfy app)
 grep -q '^NTFY_TOPIC=' "$RT" || printf 'NTFY_TOPIC=hearth-%s\n' "$(openssl rand -hex 8)" >> "$RT"
+grep -q '^HEARTH_CHERT_HOOK_KEY=' "$RT" || ( umask 077; printf 'HEARTH_CHERT_HOOK_KEY=%s\n' "$(openssl rand -hex 24)" >> "$RT" )
 # VAPID keypair for browser push (the main alert channel). Generated in the workspace, stored only in $RT.
 if ! grep -q '^VAPID_PRIVATE_KEY=' "$RT"; then
   gen=$(docker exec -u coder -w "$ROOT/backend" "$WS" .venv/bin/python -c "
@@ -90,6 +91,12 @@ elif [ -f "$RUN/urls" ] && [ -n "$(docker ps -q --filter 'name=^hearth-tunnel-we
   WEB_URL=$(sed -n 's/^web=//p' "$RUN/urls"); API_URL=$(sed -n 's/^api=//p' "$RUN/urls")
 fi
 
+if [ -n "$API_URL" ]; then
+  ( umask 077; printf '%s/hooks/chert/%s\n' "${API_URL%/}" "$HEARTH_CHERT_HOOK_KEY" > "$RUN/chert-webhook-url" )
+  chmod 600 "$RUN/chert-webhook-url"
+  echo "dev-up: Chert webhook URL saved in $RUN/chert-webhook-url"
+fi
+
 export HEARTH_TRANSPORT=${HEARTH_TRANSPORT:-mock}
 export HEARTH_SCHEDULER=${HEARTH_SCHEDULER:-0}
 export HEARTH_API_BASE=http://127.0.0.1:8000
@@ -103,6 +110,7 @@ listing=$(fnox list 2>/dev/null || true)
 found=()
 for n in "${SECRETS[@]}"; do grep -qE "^[[:space:]]*$n[[:space:]]" <<<"$listing" && found+=("$n"); done
 PLAIN=(HEARTH_PASSCODE HEARTH_SESSION_SECRET HEARTH_INTERNAL_TOKEN HEARTH_TRANSPORT HEARTH_SCHEDULER
+  HEARTH_CHERT_HOOK_KEY
   HEARTH_API_BASE HEARTH_API_ORIGIN HEARTH_PUBLIC_URL HEARTH_CORS_ORIGINS NEXT_PUBLIC_HEARTH_WS_URL
   HEARTH_RETRY_SECONDS HEARTH_MOCK_SCALE HEARTH_KIOSK_DEVICE HEARTH_RING_SECONDS HEARTH_REDACT_NAMES
   TYPESENSE_HYBRID TYPESENSE_VOICE

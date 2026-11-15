@@ -1,6 +1,6 @@
 # Memo
 
-[![CI](https://github.com/Davila-bit/hearth-home/actions/workflows/ci.yml/badge.svg)](https://github.com/Davila-bit/hearth-home/actions/workflows/ci.yml)
+[![CI](https://github.com/Davila-bit/memo/actions/workflows/ci.yml/badge.svg)](https://github.com/Davila-bit/memo/actions/workflows/ci.yml)
 Accessibility evidence: [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md) (axe scans of every page at phone and laptop size, and what is not tested yet).
 
 **The call your mum never has to answer.**
@@ -174,10 +174,13 @@ Self-hosted [Coder](https://coder.com/) (OSS) with one workspace template. Each 
 
 Claude Code with Claude Fable 5.2 as orchestrator and Claude Opus 5.5 subagents, OpenAI Codex CLI with gpt-6.1-sol, and Google Antigravity. The orchestrator wrote the shared contracts and the integration glue, split the work into briefs and task cards, and reviewed, tested and merged every branch; features were built by parallel AI workers in git worktrees and by a teammate's own agent from the task cards. The humans chose the idea and direction, made the product decisions, and tested on real devices (the iPad, FaceTime, the webcam).
 
-## Team
+## Team: who built what
 
-- [Davila-bit](https://github.com/Davila-bit)
-- [MYShaikh](https://github.com/MYShaikh) (Mohammad Shaikh)
+We're a team of two, and we used AI coding agents heavily, each of us in our own Coder workspace. The agents wrote much of the code. We made the product and design decisions, reviewed what they wrote, and did every real-device test ourselves.
+
+- **Diana Avila** ([Davila-bit](https://github.com/Davila-bit)): the idea and the product: the check-in flow, the helper's voice and guardrails, the FaceTime path through Chert, the backend and the family app. Set up how we built: self-hosted Coder, the agent workflow, and the task board that fed work to Yusuf's workspace. Ran the iPad tests, the demo and the pitch.
+- **Mohammad Yusuf Shaikh** ([MYShaikh](https://github.com/MYShaikh)): the week view, the privacy page, the kitchen-iPad setup checklist, CI, and the accessibility work: the axe report (0 violations across 48 scans) and the reflow, reduced-motion and keyboard checks.
+- **AI tools:** Claude Code, OpenAI Codex and Google Antigravity (details under Credits above).
 
 ## Docs
 

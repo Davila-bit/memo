@@ -68,6 +68,28 @@ async def voice_available(request: Request) -> bool:
     return isinstance(search, TypesenseSearch) and await search.voice_available()
 
 
+hooks = APIRouter(prefix="/hooks")
+
+
+@hooks.post("/chert/{key}")
+async def chert_hook(key: str, request: Request) -> dict:
+    expected = request.app.state.settings.chert_hook_key
+    if not expected or not secrets.compare_digest(key.encode(), expected.encode()):
+        raise HTTPException(status_code=404)
+    try:
+        event = await request.json()
+    except ValueError:
+        return {"action": "decline"}
+    if not isinstance(event, dict) or event.get("type") != "call.incoming":
+        return {"ok": True}
+    data = event.get("data")
+    call_id = data.get("call_id") if isinstance(data, dict) else None
+    if not isinstance(call_id, str) or not call_id.strip():
+        log.info("inbound FaceTime declined: missing call_id")
+        return {"action": "decline"}
+    return await svc(request).incoming(call_id)
+
+
 # ============================================================================ public
 public = APIRouter(prefix="/api")
 

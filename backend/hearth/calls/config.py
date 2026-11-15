@@ -73,9 +73,7 @@ class CallSettings:
 
     @property
     def chert_ready(self) -> bool:
-        return bool(
-            self.chert_api_key and self.chert_project_id and self.chert_line_id and self.chert_ipad_number
-        )
+        return bool(self.chert_api_key and self.chert_project_id and self.chert_line_id)
 
 
 def timings_from_env() -> Timings:

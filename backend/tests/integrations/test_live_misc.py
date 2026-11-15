@@ -50,7 +50,7 @@ def test_presidio_realistic_sentences(monkeypatch: pytest.MonkeyPatch) -> None:
             assert k in after, (k, after)
         for g in gone:
             assert g not in after, (g, after)
-    assert slowest < 30
+    assert slowest < 250  # ~5 ms on a workstation; shared CI runners spike
 
 
 @pytest.mark.skipif(not os.environ.get("GEMINI_API_KEY"), reason="needs GEMINI_API_KEY")

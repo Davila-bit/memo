@@ -54,6 +54,16 @@ def test_prompt_rules() -> None:
     assert "I'm going to get Sarah for you right now. Stay where you are." in text
 
 
+@pytest.mark.parametrize("kind", ["drink", "meal", "med"])
+def test_inbound_prompt_only_changes_the_opening(kind: str) -> None:
+    outbound = make_job("c1", kind, "http://x", 90, "chert-bridge-")
+    assert not outbound.inbound
+    inbound = outbound.model_copy(update={"inbound": True})
+    assert opening_line(inbound) == "Hello Margaret, it's Sarah's helper. Thank you for calling."
+    assert instructions(inbound) == instructions(outbound).replace(
+        opening_line(outbound), opening_line(inbound))
+
+
 # ------------------------------------------------------------------ keyword backup
 
 

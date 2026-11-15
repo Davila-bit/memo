@@ -7,7 +7,7 @@ export type CheckinStatus = "queued" | "ringing" | "connected" | "watching" | "e
 // reported = she said she did it; not seen.
 export type CheckinOutcome = "confirmed" | "reported" | "refused" | "no_answer" | "concern" | "error";
 export type EventKind = "drink" | "meal" | "med" | "refused" | "missed" | "concern" | "note";
-export type EventSource = "facetime" | "kiosk" | "manual" | "mock" | "seed";
+export type EventSource = "facetime" | "inbound" | "kiosk" | "manual" | "mock" | "seed";
 export type Amount = "sip" | "some" | "most" | "all";
 export type MedStep =
   | "slot_opened"
@@ -73,7 +73,7 @@ export interface Checkin {
   status: CheckinStatus;
   outcome: CheckinOutcome | null;
   attempt: number;
-  trigger: "schedule" | "manual" | "retry";
+  trigger: "schedule" | "manual" | "retry" | "inbound";
   schedule_item_id: string | null;
   cue_id: string | null;
   room: string;
@@ -247,6 +247,20 @@ export interface KioskToken {
   token: string;
   room: string;
   identity: string;
+}
+
+/** LiveKit dispatch metadata, shared with the API and helper. */
+export interface AgentJob {
+  checkin_id: string;
+  kind: CheckinKind;
+  transport: Transport;
+  inbound?: boolean; // defaults to false
+  resident: Resident;
+  cue: Cue | null;
+  api_base: string;
+  caller_identity_prefix: string;
+  max_seconds: number;
+  context: string;
 }
 
 export interface Health {

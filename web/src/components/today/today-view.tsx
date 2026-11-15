@@ -24,6 +24,19 @@ export function TodayView() {
   const checkin = useHearth((s) => s.checkin);
   const dismissed = useHearth((s) => s.resultDismissed);
   const [sheet, setSheet] = useState(false);
+  const ctaRef = useRef<HTMLButtonElement>(null);
+  // The sheet opens without a Radix Trigger, so hand focus back ourselves once it has closed:
+  // to "Check on her now", or to the live card's heading when a call just started (the button is
+  // disabled while it runs).
+  const sheetChange = (o: boolean) => {
+    setSheet(o);
+    if (o) return;
+    setTimeout(() => {
+      const cta = ctaRef.current;
+      if (cta && !cta.disabled) cta.focus();
+      else document.getElementById("live-heading")?.focus();
+    }, 50);
+  };
   const [note, setNote] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
@@ -71,7 +84,7 @@ export function TodayView() {
         schedule={schedule}
         actions={
           <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
-            <Button size="lg" onClick={() => setSheet(true)} disabled={running} aria-describedby={running ? "checkin-running" : undefined}>
+            <Button ref={ctaRef} size="lg" onClick={() => setSheet(true)} disabled={running} aria-describedby={running ? "checkin-running" : undefined}>
               <PhoneCall aria-hidden className="size-5" weight="fill" />
               Check on her now
             </Button>
@@ -99,7 +112,7 @@ export function TodayView() {
         <Timeline events={today.events} handled={handled} tz={tz} />
       </section>
 
-      <CheckinSheet open={sheet} onOpenChange={setSheet} />
+      <CheckinSheet open={sheet} onOpenChange={sheetChange} />
       <AddNoteSheet open={note} onOpenChange={setNote} />
     </div>
   );

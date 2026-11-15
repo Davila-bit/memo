@@ -10,7 +10,7 @@ export function HydrationRing({ ml, target, mum }: { ml: number; target: number;
   const c = 2 * Math.PI * r;
   return (
     <div className="relative size-32 shrink-0 sm:size-44" role="img" aria-label={`${mum} has had ${Math.round(ml)} of ${target} ml today, ${Math.round(pct * 100)} percent of her goal.`}>
-      <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden>
+      <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden data-ring>
         <circle cx="60" cy="60" r={r} fill="none" stroke="var(--sky-tint)" strokeWidth="10" />
         <motion.circle
           cx="60"

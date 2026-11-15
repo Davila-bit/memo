@@ -13,6 +13,7 @@ import { Button, buttonClasses } from "../ui/button";
 import { Card } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
 import { StatusBadge } from "../ui/status-badge";
+import { IpadCard } from "./ipad-card";
 
 const FIELD = "mt-2 block min-h-11 w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-base";
 const STEPS = ["Names", "Daily target", "Consent", "Practice"];
@@ -145,6 +146,7 @@ function SetupForm({ initial }: { initial: Resident }) {
         <div className="mt-4 flex flex-wrap gap-3"><Button variant="sage" disabled={busy !== null || isActive(checkin)} onClick={() => void runPractice()}><Play aria-hidden className="size-5" />{busy === 4 ? "Starting…" : "Run a practice check-in"}</Button><Link href="/" className={buttonClasses("quiet")}>Go to Today</Link></div>
         {error("step-4")}<p role="status" className="mt-3 text-sm text-sage-ink">{practice ? "Practice started. Open Today to follow the check-in." : isActive(checkin) ? "A check-in is already running. You can follow it on Today." : ""}</p>
       </Step>
+      <IpadCard />
     </div>
   </>;
 }

@@ -58,7 +58,8 @@ export function AlertCard({ alert }: { alert: Alert }) {
       layout={!reduce}
       initial={reduce ? false : { opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
-      role={urgent ? "alert" : "region"}
+      // Every alert needs Sarah, so each one is announced as it arrives, not only the urgent ones.
+      role="alert"
       aria-labelledby={titleId}
       data-testid={`alert-${alert.kind}`}
       className={cn(

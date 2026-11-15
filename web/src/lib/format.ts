@@ -74,6 +74,7 @@ export const EVENT_LABEL: Record<EventKind, string> = {
 
 export const SOURCE_LABEL: Record<EventSource, string> = {
   facetime: "FaceTime",
+  inbound: "She called",
   kiosk: "Kitchen screen",
   manual: "You",
   mock: "Practice",
