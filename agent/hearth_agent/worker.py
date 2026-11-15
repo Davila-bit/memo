@@ -98,13 +98,19 @@ def make_model():
         silence_ms = max(300, min(2000, int(os.environ.get("HEARTH_SILENCE_MS", "900"))))
     except ValueError:
         silence_ms = 900
+    # One language for speech and for the transcript of her words. HEARTH_LANG=auto lets the model decide.
+    lang = os.environ.get("HEARTH_LANG", "en-US").strip()
+    lang = "" if lang.lower() == "auto" else lang
+    if lang:
+        extra["language"] = lang
     return google.realtime.RealtimeModel(
         model=os.environ.get("GEMINI_LIVE_MODEL", "gemini-3.8-live"),
         api_key=key,
         api_version=os.environ.get("GEMINI_LIVE_API_VERSION", "v1beta"),
         voice=os.environ.get("GEMINI_LIVE_VOICE", "Aoede"),
         temperature=0.5,
-        input_audio_transcription=gt.AudioTranscriptionConfig(),
+        input_audio_transcription=(gt.AudioTranscriptionConfig(language_codes=[lang]) if lang
+                                   else gt.AudioTranscriptionConfig()),
         output_audio_transcription=gt.AudioTranscriptionConfig(),
         # She speaks slowly and pauses: wait longer before deciding she has finished.
         realtime_input_config=gt.RealtimeInputConfig(
