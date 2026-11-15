@@ -44,7 +44,7 @@ def cues() -> list[Cue]:
 def schedule() -> list[ScheduleItem]:
     rows = [
         ("water-0800", "drink", "08:00", "Morning water", "cue-mug"),
-        ("med-0815", "med", "08:15", "Morning tablets", "cue-pills"),
+        ("med-0815", "med", "08:15", "Morning tablets", "cue-pills", True),
         ("meal-0830", "meal", "08:30", "Breakfast", "cue-plate"),
         ("water-1030", "drink", "10:30", "Mid-morning water", "cue-mug"),
         ("meal-1230", "meal", "12:30", "Lunch", "cue-plate"),
@@ -52,10 +52,11 @@ def schedule() -> list[ScheduleItem]:
         ("water-1530", "drink", "15:30", "Afternoon water", "cue-mug"),
         ("meal-1730", "meal", "17:30", "Dinner", "cue-plate"),
         ("water-1800", "drink", "18:00", "Evening water", "cue-mug"),
-        ("med-1900", "med", "19:00", "Evening tablets", "cue-pills"),
+        ("med-1900", "med", "19:00", "Evening tablets", "cue-pills", False),  # off: one tablet time a day
     ]
-    return [ScheduleItem(id=i, resident_id=RESIDENT_ID, kind=k, time=t, label=lbl, cue_id=c)
-            for i, k, t, lbl, c in rows]
+    return [ScheduleItem(id=r[0], resident_id=RESIDENT_ID, kind=r[1], time=r[2], label=r[3], cue_id=r[4],
+                         enabled=r[5] if len(r) > 5 else True)
+            for r in rows]
 
 
 DRINK_EVIDENCE = [
@@ -74,7 +75,7 @@ MED_STEPS = ["slot_opened", "pill_in_hand", "hand_to_mouth", "drank_water", "slo
 
 
 def history(now: datetime, items: list[ScheduleItem]) -> list[HearthEvent]:
-    """6 previous local days plus today up to `now`; 11 of 13 doses seen by mid-afternoon."""
+    """6 previous local days plus today up to `now`, for the check-ins that are switched on."""
     rng = random.Random(1500)
     today = now.astimezone(ZoneInfo(TZ)).date()
     out: list[HearthEvent] = []
@@ -93,7 +94,7 @@ def history(now: datetime, items: list[ScheduleItem]) -> list[HearthEvent]:
 
     for back in range(6, -1, -1):
         d = today - timedelta(days=back)
-        for item in items:
+        for item in (i for i in items if i.enabled):
             ts = at_local(d, item.time, TZ) + timedelta(minutes=rng.randint(1, 3), seconds=rng.randint(0, 59))
             if ts > now:
                 continue
@@ -104,8 +105,8 @@ def history(now: datetime, items: list[ScheduleItem]) -> list[HearthEvent]:
                 out.append(HearthEvent(**base, kind="refused", summary="Said no to her afternoon water",
                                        said=said, confidence=1.0))
                 continue
-            if (back, item.id) in {(4, "med-1900"), (2, "med-0815")}:
-                at = "7:00" if back == 4 else "8:15"
+            if (back, item.id) in {(4, "med-0815"), (2, "med-0815")}:
+                at = "8:15"
                 out.append(HearthEvent(**base, kind="missed",
                                        summary=f"Didn't answer the {at} tablets check-in (tried twice)"))
                 continue

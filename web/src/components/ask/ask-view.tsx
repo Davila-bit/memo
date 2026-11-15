@@ -15,7 +15,7 @@ import { startVoiceRecording, type VoiceRecording } from "./voice";
 
 const SUGGESTIONS = [
   "How much has she drunk today?",
-  "Did she take her evening tablets on Tuesday?",
+  "Did she take her tablets on Tuesday?",
   "When did she last say no to a drink?",
   "Did she eat lunch yesterday?",
   "Any missed check-ins this week?",

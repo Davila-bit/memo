@@ -113,24 +113,31 @@ class CheckinService:
             raise NotFound("No resident is set up yet")
         return r
 
-    def slot_label(self, when: datetime, tz: str) -> str:
+    def slot_label(self, when: datetime, tz: str, by_period: bool = False) -> str:
+        """The pill-box compartment: "SUN" for a box with one compartment a day; "SUN · EVENING" when
+        more than one tablet check-in is switched on."""
         t = when.astimezone(ZoneInfo(tz))
-        return f"{t.strftime('%a').upper()} · {'MORNING' if t.hour < 14 else 'EVENING'}"
+        day = t.strftime("%a").upper()
+        return f"{day} · {'MORNING' if t.hour < 14 else 'EVENING'}" if by_period else day
 
-    def with_slot(self, cue: Cue, r: Resident) -> Cue:
+    def with_slot(self, cue: Cue, r: Resident, by_period: bool = False) -> Cue:
         if cue.kind == "med":
-            return cue.model_copy(update={"slot_label": self.slot_label(self.clock.now(), r.timezone)})
+            return cue.model_copy(update={"slot_label": self.slot_label(self.clock.now(), r.timezone, by_period)})
         return cue
+
+    async def _meds_by_period(self) -> bool:
+        return sum(1 for i in await self.store.list_schedule() if i.enabled and i.kind == "med") > 1
 
     async def cues(self) -> list[Cue]:
         r = await self.resident()
-        return [self.with_slot(c, r) for c in await self.store.list_cues()]
+        by_period = await self._meds_by_period()
+        return [self.with_slot(c, r, by_period) for c in await self.store.list_cues()]
 
     async def _cue_for(self, kind: str, cue_id: str | None, r: Resident) -> Cue | None:
         cue = await self.store.get_cue(cue_id) if cue_id else None
         if cue is None:
             cue = next((c for c in await self.store.list_cues() if c.kind == kind), None)
-        return self.with_slot(cue, r) if cue else None
+        return self.with_slot(cue, r, await self._meds_by_period()) if cue else None
 
     async def _publish(self, msg) -> None:
         try:
