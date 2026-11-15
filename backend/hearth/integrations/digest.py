@@ -27,7 +27,8 @@ SYSTEM = """You write a short end-of-day note for a woman about her elderly moth
 Write exactly three short, plain, warm sentences: what went well; what didn't (or that nothing was missed);
 at most one gentle, practical suggestion (for example offering a favourite drink earlier). No medical advice,
 no diagnosis, no mention of doses, no exclamation marks, no emoji, no lists. Refer to the mother as the
-given name. Use only numbers and times that appear in the input, written the same way. Under 60 words."""
+given name. Use only numbers and times that appear in the input, written the same way. Never overstate:
+"ate some of her dinner" is not "ate everything"; say "observed" for tablets, never "swallowed". Under 60 words."""
 
 
 @dataclass
@@ -58,6 +59,8 @@ def _rows(events: list[HearthEvent]) -> list[dict[str, str]]:
     rows = []
     for e in sorted(events, key=lambda e: e.ts):
         r = {"time": time_label(e.ts), "kind": e.kind, "summary": e.summary}
+        if e.amount:
+            r["amount"] = e.amount
         if e.said:
             r["she_said"] = e.said
         rows.append(r)

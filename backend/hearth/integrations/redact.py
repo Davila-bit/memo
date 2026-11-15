@@ -144,15 +144,15 @@ class PresidioRedactor:
             set_status("presidio", "error")
             log.warning("presidio unavailable, using regex redaction: %s", type(e).__name__)
 
-    _ENTITIES = ["PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "LOCATION", "US_SSN", "CREDIT_CARD",
-                 "STREET_ADDRESS", "DATE_OF_BIRTH", "FAMILY_NAME"]
+    _ENTITIES: tuple[str, ...] = ("PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "LOCATION", "US_SSN", "CREDIT_CARD",
+                 "STREET_ADDRESS", "DATE_OF_BIRTH", "FAMILY_NAME")
 
     def _redact_presidio(self, text: str) -> str:
         from presidio_anonymizer.entities import OperatorConfig
 
         assert self._analyzer is not None and self._anonymizer is not None
         results = self._analyzer.analyze(
-            text=text, language="en", entities=self._ENTITIES,
+            text=text, language="en", entities=list(self._ENTITIES),
             allow_list=sorted(ALLOW_WORDS), allow_list_match="exact",
         )
         kept = []

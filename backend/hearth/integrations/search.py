@@ -111,8 +111,8 @@ def date_table(now: datetime) -> str:
     """Plain-text calendar the model needs to resolve relative dates against the demo clock."""
     n = to_local(now)
     lines = [
-        f"Current local date and time: {n.strftime('%A %Y-%m-%d %H:%M')} ({local_tz().key}); "
-        f"now ts_unix = {int(now.timestamp())}.",
+        (f"Current local date and time: {n.strftime('%A %Y-%m-%d %H:%M')} ({local_tz().key}); "
+         f"now ts_unix = {int(now.timestamp())}."),
         "Days (local), newest first, with the ts_unix range of each day:",
     ]
     for back in range(8):
@@ -302,7 +302,7 @@ class TypesenseSearch:
                      self.client.nl_search_models[self.nl_model_id].delete()):
             try:
                 await coro
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     async def ask(self, q: str, now: datetime, recent: list[HearthEvent]) -> AskResponse:
@@ -382,7 +382,7 @@ class TypesenseSearch:
         for h in res.get("hits") or []:
             try:
                 e = doc_to_event(h["document"])
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S112
                 continue
             if strict and not matches(e, plan):
                 continue

@@ -22,7 +22,9 @@ from hearth_contracts.models import Alert, PushSubscription
 
 from ._common import env, log, set_status, time_label, warn_once
 
-DEFAULT_SUBJECT = "https://github.com/Davila-bit/hearth-home"
+# VAPID `sub`: a contact URL for the push service. py_vapid only accepts mailto: or a bare https origin
+# (no path). Never a personal email here; set VAPID_SUBJECT to the deployed origin when there is one.
+DEFAULT_SUBJECT = "https://davila-bit.github.io"
 
 ALERT_ACTIONS: dict[str, list[tuple[str, str]]] = {
     "concern": [("handling", "I'm handling it"), ("called_911", "Call 911")],
@@ -96,8 +98,14 @@ class HearthNotifier:
         self.vapid_private = env("VAPID_PRIVATE_KEY")
         self.vapid_public = env("VAPID_PUBLIC_KEY")
         self.vapid_subject = env("VAPID_SUBJECT", DEFAULT_SUBJECT) or DEFAULT_SUBJECT
-        if self.vapid_subject and not self.vapid_subject.startswith(("mailto:", "https://")):
-            self.vapid_subject = DEFAULT_SUBJECT
+        try:
+            from py_vapid import _check_sub
+
+            if not _check_sub(self.vapid_subject):
+                warn_once("vapid_sub", "VAPID_SUBJECT must be mailto: or a bare https:// origin; using default")
+                self.vapid_subject = DEFAULT_SUBJECT
+        except Exception:  # noqa: BLE001, S110
+            pass
         self.ntfy_url = (env("NTFY_URL", "https://ntfy.sh") or "https://ntfy.sh").rstrip("/")
         self.ntfy_topic = env("NTFY_TOPIC")
         self.ntfy_all = env("NTFY_ALL", "0") == "1"

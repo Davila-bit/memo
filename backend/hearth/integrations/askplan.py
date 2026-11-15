@@ -131,7 +131,16 @@ def make_plan(q: str, now: datetime) -> Plan:
         plan.text = topic_word(topic)
     elif meal_word:
         plan.text = meal_word
+    elif not plan.kinds:
+        # Nothing we recognise: never answer "yes" from unrelated events; search the words instead.
+        plan.text = " ".join(content_terms(q)) or "*"
+        if plan.intent == "yesno":
+            plan.intent = "list"
     return plan
+
+
+def content_terms(q: str) -> list[str]:
+    return [t for t in re.findall(r"[a-z']{3,}", q.lower()) if t not in _STOP]
 
 
 def topic_word(topic: str) -> str:
@@ -165,15 +174,15 @@ def matches(e: HearthEvent, plan: Plan) -> bool:
 def keyword_hits(q: str, now: datetime, recent: list[HearthEvent]) -> tuple[Plan, list[HearthEvent]]:
     plan = make_plan(q, now)
     found = sorted((e for e in recent if matches(e, plan)), key=lambda e: e.ts, reverse=True)
-    if not found and not plan.kinds and plan.start is None:
-        terms = [t for t in re.findall(r"[a-z']{3,}", q.lower()) if t not in _STOP]
-        found = sorted((e for e in recent if any(t in _event_text(e) for t in terms)), key=lambda e: e.ts,
-                       reverse=True)
+    if not plan.kinds:
+        terms = content_terms(q)
+        found = [e for e in found if any(t in _event_text(e) for t in terms)] if terms else []
     return plan, found
 
 
 _STOP = {"did", "she", "her", "mum", "mom", "the", "and", "any", "what", "when", "how", "has", "have", "was",
-         "this", "that", "with", "about", "today", "much", "many", "take", "last"}
+         "this", "that", "with", "about", "today", "much", "many", "take", "last", "yesterday", "week", "does",
+         "doing", "there", "were", "been", "for", "she's", "mum's", "get", "got", "tell", "show", "anything"}
 
 
 # ---------------------------------------------------------------------------- answers
